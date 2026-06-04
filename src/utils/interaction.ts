@@ -8,14 +8,18 @@ import type {
 } from 'discord.js';
 
 import type { ApexService } from '../apex/types';
+import type { ValorantService } from '../valorant/types';
 import type { BotConfig, CommandContext } from '../types/bot';
 import type { Logger } from './logger';
 import type { Player } from 'discord-player';
 import type { AutocompleteContext } from '../types/bot';
 import type { MusicLibraryService } from '../music/library';
+import type { MusicStatsService } from '../music/stats';
 import type { QueueStateService } from '../music/queueState';
 import type { MusicSettingsService } from '../music/settings';
+import type { QueueVoteManager } from '../music/queueVoting';
 import type { VoteSkipManager } from '../music/voteSkip';
+import type { UtilityStore } from './utilityStore';
 import {
   createErrorReply,
   createInfoReply,
@@ -47,20 +51,28 @@ export const createCommandContext = (
   interaction: ChatInputCommandInteraction<'cached'>,
   player: Player,
   apex: ApexService,
+  valorant: ValorantService,
   musicLibrary: MusicLibraryService,
+  musicStats: MusicStatsService,
   musicSettings: MusicSettingsService,
   queueState: QueueStateService,
+  queueVotes: QueueVoteManager,
   voteSkips: VoteSkipManager,
+  utilityStore: UtilityStore,
   config: BotConfig,
   logger: Logger,
 ): CommandContext => ({
   interaction,
   player,
   apex,
+  valorant,
   musicLibrary,
+  musicStats,
   musicSettings,
   queueState,
+  queueVotes,
   voteSkips,
+  utilityStore,
   config,
   logger,
   deferReply: async (options) => {
@@ -97,20 +109,28 @@ export const createAutocompleteContext = (
   interaction: AutocompleteContext['interaction'],
   player: Player,
   apex: ApexService,
+  valorant: ValorantService,
   musicLibrary: MusicLibraryService,
+  musicStats: MusicStatsService,
   musicSettings: MusicSettingsService,
   queueState: QueueStateService,
+  queueVotes: QueueVoteManager,
   voteSkips: VoteSkipManager,
+  utilityStore: UtilityStore,
   config: BotConfig,
   logger: Logger,
 ): AutocompleteContext => ({
   interaction,
   player,
   apex,
+  valorant,
   musicLibrary,
+  musicStats,
   musicSettings,
   queueState,
+  queueVotes,
   voteSkips,
+  utilityStore,
   config,
   logger,
 });

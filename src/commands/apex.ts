@@ -6,27 +6,75 @@ import { APEX_PLATFORM_CHOICES, getPlatformLabel } from '../apex/platform';
 import {
   ApexError,
   type ApexAppPlatform,
+  type ApexCompareCard,
   type ApexLegendCard,
+  type ApexMapRotation,
   type ApexOverviewCard,
+  type ApexRankCard,
+  type ApexSquadCard,
+  type ApexWatchCard,
 } from '../apex/types';
 
 const buildStatsEmbed = (
-  card: ApexOverviewCard | ApexLegendCard,
-): EmbedBuilder =>
-  new EmbedBuilder()
+  card:
+    | ApexOverviewCard
+    | ApexLegendCard
+    | ApexRankCard
+    | ApexCompareCard
+    | ApexSquadCard
+    | ApexWatchCard,
+): EmbedBuilder => {
+  const embed = new EmbedBuilder()
     .setColor(card.color)
     .setTitle(card.title)
-    .setURL(card.url)
     .setDescription(card.description)
     .setFooter({
       text: card.footer,
     })
     .setTimestamp()
-    .setThumbnail(card.thumbnailUrl ?? null)
     .addFields(card.fields);
+
+  if ('url' in card) {
+    embed.setURL(card.url);
+  }
+
+  if ('thumbnailUrl' in card) {
+    embed.setThumbnail(card.thumbnailUrl ?? null);
+  }
+
+  return embed;
+};
 
 const buildErrorEmbed = (title: string, message: string): EmbedBuilder =>
   createStatusEmbed(title, message, 0xf44336);
+
+const buildMapEmbed = (rotation: ApexMapRotation): EmbedBuilder => {
+  const remaining =
+    typeof rotation.current.remainingSeconds === 'number'
+      ? `${Math.round(rotation.current.remainingSeconds / 60)} minute(s)`
+      : 'Unknown';
+  const next = rotation.next
+    ? `Next: **${rotation.next.map}**${
+        rotation.next.startsAt
+          ? ` at <t:${Math.floor(new Date(rotation.next.startsAt).getTime() / 1000)}:t>`
+          : ''
+      }`
+    : 'Next map unavailable.';
+
+  return new EmbedBuilder()
+    .setColor(0xda292a)
+    .setTitle('Apex Map Rotation')
+    .setDescription(
+      [
+        `Current: **${rotation.current.map}**`,
+        `Mode: **${rotation.current.mode ?? 'Battle Royale'}**`,
+        `Remaining: **${remaining}**`,
+        next,
+      ].join('\n'),
+    )
+    .setFooter({ text: rotation.source })
+    .setTimestamp();
+};
 
 const applyPlatformChoices = <
   T extends {
@@ -187,6 +235,67 @@ export const apexCommand: CommandModule = {
             .setDescription('Optional manual Apex UID override.')
             .setRequired(false),
         ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('map')
+        .setDescription('Show the current Apex map rotation.'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('rank')
+        .setDescription('Show focused ranked stats.')
+        .addUserOption((option) =>
+          option
+            .setName('user')
+            .setDescription('Optional linked member to look up')
+            .setRequired(false),
+        ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('compare')
+        .setDescription('Compare your linked account with another member.')
+        .addUserOption((option) =>
+          option
+            .setName('user')
+            .setDescription('Linked member to compare against')
+            .setRequired(true),
+        ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('squad')
+        .setDescription('Show a compact linked squad card.')
+        .addUserOption((option) =>
+          option
+            .setName('member1')
+            .setDescription('First linked member')
+            .setRequired(true),
+        )
+        .addUserOption((option) =>
+          option
+            .setName('member2')
+            .setDescription('Second linked member')
+            .setRequired(false),
+        )
+        .addUserOption((option) =>
+          option
+            .setName('member3')
+            .setDescription('Third linked member')
+            .setRequired(false),
+        )
+        .addUserOption((option) =>
+          option
+            .setName('member4')
+            .setDescription('Fourth linked member')
+            .setRequired(false),
+        ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('watch')
+        .setDescription('Save or compare an Apex stat snapshot for yourself.'),
     ),
   execute: async (context) => {
     const subcommand = context.interaction.options.getSubcommand(true);
@@ -304,6 +413,61 @@ export const apexCommand: CommandModule = {
             uid: uid ?? undefined,
           });
 
+          await context.interaction.editReply({
+            embeds: [buildStatsEmbed(card)],
+          });
+          return;
+        }
+        case 'map': {
+          await context.deferReply();
+          const rotation = await context.apex.getMapRotation();
+          await context.interaction.editReply({
+            embeds: [buildMapEmbed(rotation)],
+          });
+          return;
+        }
+        case 'rank': {
+          await context.deferReply();
+          const user = context.interaction.options.getUser('user');
+          const card = await context.apex.getRankForRequest({
+            requesterId: context.interaction.user.id,
+            memberId: user?.id,
+          });
+          await context.interaction.editReply({
+            embeds: [buildStatsEmbed(card)],
+          });
+          return;
+        }
+        case 'compare': {
+          await context.deferReply();
+          const user = context.interaction.options.getUser('user', true);
+          const card = await context.apex.compareLinkedAccounts({
+            requesterId: context.interaction.user.id,
+            memberId: user.id,
+          });
+          await context.interaction.editReply({
+            embeds: [buildStatsEmbed(card)],
+          });
+          return;
+        }
+        case 'squad': {
+          await context.deferReply();
+          const users = ['member1', 'member2', 'member3', 'member4']
+            .map((name) => context.interaction.options.getUser(name))
+            .filter((user): user is NonNullable<typeof user> => Boolean(user));
+          const card = await context.apex.getSquadCard(
+            users.map((user) => user.id),
+          );
+          await context.interaction.editReply({
+            embeds: [buildStatsEmbed(card)],
+          });
+          return;
+        }
+        case 'watch': {
+          await context.deferReply({ ephemeral: true });
+          const card = await context.apex.watchAccount(
+            context.interaction.user.id,
+          );
           await context.interaction.editReply({
             embeds: [buildStatsEmbed(card)],
           });

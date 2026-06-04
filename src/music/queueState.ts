@@ -9,6 +9,7 @@ import type { GuildMusicSession } from '../types/bot';
 import type { Logger } from '../utils/logger';
 
 export const DEFAULT_MUSIC_QUEUE_STATE_FILE = 'data/music-queue-state.json';
+export const DEFAULT_MUSIC_QUEUE_RESTORE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export interface PersistedQueueState {
   guildId: string;
@@ -18,7 +19,13 @@ export interface PersistedQueueState {
   upcomingTracks: SavedTrack[];
   volume: number;
   repeatMode: number;
+  panelMessage?: PersistedPanelMessageRef;
   updatedAt: string;
+}
+
+export interface PersistedPanelMessageRef {
+  channelId: string;
+  messageId: string;
 }
 
 export interface QueueStateService {
@@ -26,6 +33,11 @@ export interface QueueStateService {
   get(guildId: string): PersistedQueueState | null;
   save(state: PersistedQueueState): Promise<void>;
   clear(guildId: string): Promise<void>;
+}
+
+interface QueueStateServiceOptions {
+  restoreMaxAgeMs?: number;
+  now?: () => Date;
 }
 
 const savedTrackSchema = z.object({
@@ -49,6 +61,12 @@ const stateSchema = z.object({
     .int()
     .min(QueueRepeatMode.OFF)
     .max(QueueRepeatMode.AUTOPLAY),
+  panelMessage: z
+    .object({
+      channelId: z.string().min(1),
+      messageId: z.string().min(1),
+    })
+    .optional(),
   updatedAt: z.string().datetime(),
 });
 
@@ -65,11 +83,30 @@ const createEmptyFile = (): StoredFile => ({
 });
 
 const cloneTrack = (track: SavedTrack): SavedTrack => ({ ...track });
-const cloneState = (state: PersistedQueueState): PersistedQueueState => ({
-  ...state,
-  currentTrack: state.currentTrack ? cloneTrack(state.currentTrack) : null,
-  upcomingTracks: state.upcomingTracks.map(cloneTrack),
-});
+const clonePanelMessage = (
+  panelMessage: PersistedPanelMessageRef,
+): PersistedPanelMessageRef => ({ ...panelMessage });
+const cloneState = (state: PersistedQueueState): PersistedQueueState => {
+  const cloned: PersistedQueueState = {
+    ...state,
+    currentTrack: state.currentTrack ? cloneTrack(state.currentTrack) : null,
+    upcomingTracks: state.upcomingTracks.map(cloneTrack),
+  };
+
+  if (state.panelMessage) {
+    cloned.panelMessage = clonePanelMessage(state.panelMessage);
+  } else {
+    delete cloned.panelMessage;
+  }
+
+  return cloned;
+};
+
+const isStateFreshEnough = (
+  state: PersistedQueueState,
+  restoreMaxAgeMs: number,
+  now: Date,
+): boolean => now.getTime() - Date.parse(state.updatedAt) <= restoreMaxAgeMs;
 
 const writeJsonAtomic = async (
   filePath: string,
@@ -132,6 +169,7 @@ class JsonQueueStateService implements QueueStateService {
   constructor(
     private readonly filePath: string,
     private readonly logger: Logger,
+    private readonly options: QueueStateServiceOptions = {},
   ) {}
 
   async initialize(): Promise<void> {
@@ -159,12 +197,24 @@ class JsonQueueStateService implements QueueStateService {
         );
       }
 
-      this.states = new Map(
-        Object.entries(parsed.data.guilds).map(([guildId, state]) => [
-          guildId,
-          state,
-        ]),
+      const restoreMaxAgeMs =
+        this.options.restoreMaxAgeMs ?? DEFAULT_MUSIC_QUEUE_RESTORE_MAX_AGE_MS;
+      const now = this.options.now?.() ?? new Date();
+      const freshStates = Object.entries(parsed.data.guilds).filter(
+        ([, state]) => isStateFreshEnough(state, restoreMaxAgeMs, now),
       );
+      const staleCount =
+        Object.keys(parsed.data.guilds).length - freshStates.length;
+
+      this.states = new Map(freshStates);
+
+      if (staleCount > 0) {
+        await this.persist();
+        this.logger.info(
+          `Pruned ${staleCount} stale persisted queue state(s) older than ${restoreMaxAgeMs} ms.`,
+        );
+      }
+
       this.logger.debug(
         `Loaded ${this.states.size} persisted queue state(s) from disk.`,
       );
@@ -191,7 +241,14 @@ class JsonQueueStateService implements QueueStateService {
   }
 
   async save(state: PersistedQueueState): Promise<void> {
-    this.states.set(state.guildId, cloneState(state));
+    const existingPanelMessage = this.states.get(state.guildId)?.panelMessage;
+    const nextState = cloneState(state);
+
+    if (!nextState.panelMessage && existingPanelMessage) {
+      nextState.panelMessage = clonePanelMessage(existingPanelMessage);
+    }
+
+    this.states.set(state.guildId, nextState);
     await this.persist();
   }
 
@@ -225,8 +282,9 @@ class JsonQueueStateService implements QueueStateService {
 export const createJsonQueueStateService = async (
   filePath: string,
   logger: Logger,
+  options: QueueStateServiceOptions = {},
 ): Promise<QueueStateService> => {
-  const service = new JsonQueueStateService(filePath, logger);
+  const service = new JsonQueueStateService(filePath, logger, options);
   await service.initialize();
   return service;
 };

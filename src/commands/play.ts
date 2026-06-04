@@ -9,6 +9,7 @@ import {
   syncQueueTextChannel,
 } from '../music/guards';
 import { queueResolvedTracks } from '../music/libraryPlayback';
+import { queueSavedTracks } from '../music/libraryPlayback';
 import {
   isSpotifyPlaylistQuery,
   resolveSpotifyPlaylistToYoutubeTracks,
@@ -238,6 +239,77 @@ const queueNext = async (
   });
 };
 
+const pickRandom = <T>(items: T[]): T | null =>
+  items.length > 0 ? items[Math.floor(Math.random() * items.length)] : null;
+
+const playRandomFavorite = async (
+  context: Parameters<CommandModule['execute']>[0],
+) => {
+  await context.deferReply();
+  const favorites = context.musicLibrary.listFavorites(
+    context.interaction.user.id,
+  );
+  const favorite = pickRandom(favorites);
+
+  if (!favorite) {
+    await context.editReply({
+      title: 'No Favorites',
+      description: 'You do not have any saved favorites yet.',
+    });
+    return;
+  }
+
+  const result = await queueSavedTracks(context, [favorite]);
+
+  if (!result) {
+    return;
+  }
+
+  await context.editReply({
+    title: result.startedPlayback
+      ? 'Random Favorite Started'
+      : 'Random Favorite Queued',
+    description: `[${favorite.title}](${favorite.url}) • \`${favorite.duration}\``,
+  });
+};
+
+const playRandomPlaylistTrack = async (
+  context: Parameters<CommandModule['execute']>[0],
+) => {
+  await context.deferReply();
+  const name = context.interaction.options.getString('name');
+  const playlists = name
+    ? [
+        context.musicLibrary.getPlaylist(context.interaction.guildId, name),
+      ].filter((playlist) => playlist !== null)
+    : context.musicLibrary.listPlaylists(context.interaction.guildId);
+  const tracks = playlists.flatMap((playlist) => playlist.tracks);
+  const track = pickRandom(tracks);
+
+  if (!track) {
+    await context.editReply({
+      title: 'No Playlist Tracks',
+      description: name
+        ? `Playlist **${name}** does not exist or has no tracks.`
+        : 'This server does not have any saved playlist tracks yet.',
+    });
+    return;
+  }
+
+  const result = await queueSavedTracks(context, [track]);
+
+  if (!result) {
+    return;
+  }
+
+  await context.editReply({
+    title: result.startedPlayback
+      ? 'Random Playlist Track Started'
+      : 'Random Playlist Track Queued',
+    description: `[${track.title}](${track.url}) • \`${track.duration}\``,
+  });
+};
+
 export const playCommand: CommandModule = {
   data: new SlashCommandBuilder()
     .setName('play')
@@ -266,16 +338,76 @@ export const playCommand: CommandModule = {
             .setDescription('A search term or music URL')
             .setRequired(true),
         ),
+    )
+    .addSubcommandGroup((group) =>
+      group
+        .setName('random')
+        .setDescription('Play a random saved track.')
+        .addSubcommand((subcommand) =>
+          subcommand
+            .setName('favorite')
+            .setDescription('Play a random track from your favorites.'),
+        )
+        .addSubcommand((subcommand) =>
+          subcommand
+            .setName('playlist')
+            .setDescription('Play a random track from server playlists.')
+            .addStringOption((option) =>
+              option
+                .setName('name')
+                .setDescription('Optional playlist name')
+                .setRequired(false)
+                .setAutocomplete(true),
+            ),
+        ),
     ),
   execute: async (context) => {
+    const group = context.interaction.options.getSubcommandGroup(false);
     const subcommand = context.interaction.options.getSubcommand(true);
-    const query = context.interaction.options.getString('query', true);
+
+    if (group === 'random' && subcommand === 'favorite') {
+      await playRandomFavorite(context);
+      return;
+    }
+
+    if (group === 'random' && subcommand === 'playlist') {
+      await playRandomPlaylistTrack(context);
+      return;
+    }
 
     if (subcommand === 'next') {
+      const query = context.interaction.options.getString('query', true);
       await queueNext(context, query);
       return;
     }
 
+    const query = context.interaction.options.getString('query', true);
     await queueNow(context, query);
+  },
+  autocomplete: async (context) => {
+    const group = context.interaction.options.getSubcommandGroup();
+    const focused = context.interaction.options.getFocused(true);
+
+    if (group !== 'random' || focused.name !== 'name') {
+      await context.interaction.respond([]);
+      return;
+    }
+
+    const playlists = context.musicLibrary.listPlaylists(
+      context.interaction.guildId,
+    );
+    await context.interaction.respond(
+      playlists
+        .filter((playlist) =>
+          playlist.name
+            .toLowerCase()
+            .includes(String(focused.value).toLowerCase()),
+        )
+        .slice(0, 25)
+        .map((playlist) => ({
+          name: `${playlist.name} (${playlist.tracks.length})`.slice(0, 100),
+          value: playlist.name,
+        })),
+    );
   },
 };

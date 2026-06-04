@@ -17,10 +17,54 @@ const repeatModeMap = {
   queue: QueueRepeatMode.QUEUE,
 } as const;
 
+const radioMoodQueries = {
+  chill: 'chill music mix',
+  hype: 'hype gaming music mix',
+  throwback: 'throwback hits playlist',
+  focus: 'focus instrumental music mix',
+} as const;
+
 const requirePlayerControl = async (
   context: Parameters<CommandModule['execute']>[0],
   action: string,
 ) => requireDjOrOpenControl(context, action);
+
+const cleanTrackTitle = (title: string): string =>
+  title
+    .replace(/\([^)]*(official|lyrics?|audio|video|visualizer)[^)]*\)/gi, '')
+    .replace(/\[[^\]]*(official|lyrics?|audio|video|visualizer)[^\]]*\]/gi, '')
+    .trim();
+
+const fetchLyrics = async (
+  artist: string,
+  title: string,
+): Promise<string | null> => {
+  const response = await fetch(
+    `https://api.lyrics.ovh/v1/${encodeURIComponent(
+      artist,
+    )}/${encodeURIComponent(cleanTrackTitle(title))}`,
+    {
+      signal: AbortSignal.timeout(8_000),
+    },
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as unknown;
+
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    !('lyrics' in payload) ||
+    typeof payload.lyrics !== 'string'
+  ) {
+    return null;
+  }
+
+  return payload.lyrics.trim() || null;
+};
 
 export const playerCommand: CommandModule = {
   data: new SlashCommandBuilder()
@@ -31,6 +75,11 @@ export const playerCommand: CommandModule = {
       subcommand
         .setName('now')
         .setDescription('Show details about the current track.'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('lyrics')
+        .setDescription('Find lyrics for the current track.'),
     )
     .addSubcommand((subcommand) =>
       subcommand.setName('pause').setDescription('Pause the current track.'),
@@ -115,6 +164,23 @@ export const playerCommand: CommandModule = {
     )
     .addSubcommand((subcommand) =>
       subcommand
+        .setName('radio')
+        .setDescription('Seed the queue with a radio mood preset.')
+        .addStringOption((option) =>
+          option
+            .setName('mood')
+            .setDescription('The radio mood to use')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Chill', value: 'chill' },
+              { name: 'Hype', value: 'hype' },
+              { name: 'Throwback', value: 'throwback' },
+              { name: 'Focus', value: 'focus' },
+            ),
+        ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
         .setName('voteskip')
         .setDescription('Vote with other listeners to skip the current track.'),
     ),
@@ -161,6 +227,48 @@ export const playerCommand: CommandModule = {
           .setTimestamp();
 
         await context.interaction.reply({ embeds: [embed] });
+        return;
+      }
+      case 'lyrics': {
+        const track = queue.currentTrack;
+
+        if (!track) {
+          await context.replyError('There is no current track right now.');
+          return;
+        }
+
+        await context.deferReply({ ephemeral: true });
+
+        try {
+          const lyrics = await fetchLyrics(track.author, track.title);
+
+          if (!lyrics) {
+            await context.editReply({
+              title: 'Lyrics Not Found',
+              description: `I could not find lyrics for **${track.title}**.`,
+            });
+            return;
+          }
+
+          await context.interaction.editReply({
+            embeds: [
+              new EmbedBuilder()
+                .setColor(0x4f9eed)
+                .setTitle(`Lyrics: ${track.title}`)
+                .setDescription(
+                  lyrics.length > 3900 ? `${lyrics.slice(0, 3900)}...` : lyrics,
+                )
+                .setFooter({ text: track.author })
+                .setTimestamp(),
+            ],
+          });
+        } catch (error) {
+          context.logger.warn('Failed to fetch lyrics.', error);
+          await context.editReply({
+            title: 'Lyrics Not Found',
+            description: `I could not find lyrics for **${track.title}** right now.`,
+          });
+        }
         return;
       }
       case 'pause': {
@@ -391,6 +499,39 @@ export const playerCommand: CommandModule = {
           state === 'on'
             ? 'Autoplay is now enabled.'
             : 'Autoplay is now disabled.',
+        );
+        return;
+      }
+      case 'radio': {
+        if (!(await requirePlayerControl(context, 'add radio tracks'))) {
+          return;
+        }
+
+        const mood = context.interaction.options.getString(
+          'mood',
+          true,
+        ) as keyof typeof radioMoodQueries;
+        const result = await context.player.search(radioMoodQueries[mood], {
+          requestedBy: context.interaction.user,
+          searchEngine: context.config.music.youtubeSearchEngine,
+        });
+
+        if (result.isEmpty()) {
+          await context.replyError(
+            `I could not find tracks for ${mood} radio.`,
+          );
+          return;
+        }
+
+        const tracks = result.tracks.slice(0, 5);
+        queue.addTrack(tracks);
+        const snapshot = createQueueSnapshot(queue);
+        if (snapshot) {
+          await context.queueState.save(snapshot);
+        }
+        syncQueueTextChannel(context.interaction, queue);
+        await context.replySuccess(
+          `Added **${tracks.length}** ${mood} radio track(s) to the queue.`,
         );
         return;
       }

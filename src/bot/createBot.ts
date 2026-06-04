@@ -12,7 +12,14 @@ import { createTrackerApexApiClient } from '../apex/client';
 import { createMozambiqueApexApiClient } from '../apex/mozambiqueClient';
 import { createApexService } from '../apex/service';
 import { createJsonApexLinkStore } from '../apex/store';
+import { createJsonApexWatchStore } from '../apex/watchStore';
 import { ApexError } from '../apex/types';
+import { createValorantHenrikClient } from '../valorant/henrikClient';
+import { ValorantLeaderboardManager } from '../valorant/leaderboardManager';
+import { createJsonValorantLeaderboardStateStore } from '../valorant/leaderboardStore';
+import { createValorantService } from '../valorant/service';
+import { createJsonValorantLinkStore } from '../valorant/store';
+import { createValorantStaticClient } from '../valorant/staticClient';
 import { commandMap, djCommandNames, musicCommandNames } from '../commands';
 import type { BotConfig } from '../types/bot';
 import {
@@ -21,9 +28,15 @@ import {
 } from '../utils/interaction';
 import type { Logger } from '../utils/logger';
 import { UserFacingError } from '../utils/errors';
-import { createMusicPlayer, restoreSavedQueue } from '../music/service';
+import {
+  createMusicPlayer,
+  getGuildSession,
+  restoreSavedQueue,
+} from '../music/service';
 import { handleMusicSearchSelect } from '../music/searchInteractions';
 import { createJsonMusicLibraryService } from '../music/library';
+import { QueueVoteManager } from '../music/queueVoting';
+import { createJsonMusicStatsService } from '../music/stats';
 import { MusicPanelManager } from '../music/panel';
 import {
   createJsonQueueStateService,
@@ -31,6 +44,8 @@ import {
 } from '../music/queueState';
 import { createJsonMusicSettingsService } from '../music/settings';
 import { VoteSkipManager } from '../music/voteSkip';
+import { createJsonUtilityStore } from '../utils/utilityStore';
+import { UtilityInteractionManager } from '../utils/utilityInteractions';
 import {
   ensureMusicTextChannel,
   requireDjOrOpenControl,
@@ -42,14 +57,20 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
   });
 
   const voteSkips = new VoteSkipManager();
+  const queueVotes = new QueueVoteManager();
   const player = await createMusicPlayer(client, config, logger, voteSkips);
   const musicLibrary = await createJsonMusicLibraryService(
     config.music.libraryFile,
     logger,
   );
+  const musicStats = await createJsonMusicStatsService(
+    config.music.statsFile,
+    logger,
+  );
   const queueState = await createJsonQueueStateService(
     config.music.queueStateFile,
     logger,
+    { restoreMaxAgeMs: config.music.queueRestoreMaxAgeMs },
   );
   const musicSettings = await createJsonMusicSettingsService(
     config.music.settingsFile,
@@ -59,6 +80,27 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
   const musicPanel = new MusicPanelManager(player, logger, queueState);
   const apexLinkStore = await createJsonApexLinkStore(
     config.apex.linksFile,
+    logger,
+  );
+  const apexWatchStore = await createJsonApexWatchStore(
+    config.apex.watchFile,
+    logger,
+  );
+  const valorantLinkStore = await createJsonValorantLinkStore(
+    config.valorant.linksFile,
+    logger,
+  );
+  const valorantLeaderboardStateStore =
+    await createJsonValorantLeaderboardStateStore(
+      config.valorant.leaderboardStateFile,
+      logger,
+    );
+  const utilityStore = await createJsonUtilityStore(
+    config.utility.storeFile,
+    logger,
+  );
+  const utilityInteractions = new UtilityInteractionManager(
+    utilityStore,
     logger,
   );
   const apexClient =
@@ -71,10 +113,31 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
   const apexService = createApexService({
     client: apexClient,
     store: apexLinkStore,
+    watchStore: apexWatchStore,
   });
+  const valorantService = createValorantService({
+    staticClient: createValorantStaticClient(logger),
+    henrikClient: createValorantHenrikClient(
+      config.valorant.henrikDevApiKey,
+      logger,
+    ),
+    store: valorantLinkStore,
+  });
+  const valorantLeaderboard = new ValorantLeaderboardManager(
+    valorantService,
+    valorantLinkStore,
+    valorantLeaderboardStateStore,
+    logger,
+    {
+      channelId: config.valorant.leaderboardChannelId,
+      refreshIntervalMs: config.valorant.leaderboardRefreshIntervalMs,
+    },
+  );
 
   client.once(Events.ClientReady, (readyClient) => {
     logger.info(`Logged in as ${readyClient.user.tag}.`);
+    utilityInteractions.startReminderLoop(readyClient);
+    valorantLeaderboard.start(readyClient);
     void (async () => {
       for (const state of queueState.getAll()) {
         try {
@@ -97,6 +160,12 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
             textChannel as GuildTextBasedChannel,
             state,
           );
+
+          const restoredQueue = getGuildSession(player, state.guildId);
+
+          if (restoredQueue) {
+            await musicPanel.render(restoredQueue);
+          }
         } catch (error) {
           logger.warn(
             `Failed to restore queue state for guild ${state.guildId}. Clearing saved state.`,
@@ -121,7 +190,18 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
       return;
     }
 
-    if (await musicPanel.handleButton(interaction, musicSettings)) {
+    if (
+      await musicPanel.handleButton(
+        interaction,
+        musicSettings,
+        musicLibrary,
+        voteSkips,
+      )
+    ) {
+      return;
+    }
+
+    if (await utilityInteractions.handleButton(interaction)) {
       return;
     }
 
@@ -136,10 +216,14 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
         interaction,
         player,
         apexService,
+        valorantService,
         musicLibrary,
+        musicStats,
         musicSettings,
         queueState,
+        queueVotes,
         voteSkips,
+        utilityStore,
         config,
         logger,
       );
@@ -176,10 +260,14 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
       interaction,
       player,
       apexService,
+      valorantService,
       musicLibrary,
+      musicStats,
       musicSettings,
       queueState,
+      queueVotes,
       voteSkips,
+      utilityStore,
       config,
       logger,
     );
@@ -240,6 +328,10 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
     const snapshot = createQueueSnapshot(queue);
     if (snapshot) {
       void queueState.save(snapshot);
+    }
+    queueVotes.clearGuild(queue.guild.id);
+    if (queue.currentTrack) {
+      void musicStats.recordTrackStart(queue.guild.id, queue.currentTrack);
     }
     void musicPanel.render(queue);
   });

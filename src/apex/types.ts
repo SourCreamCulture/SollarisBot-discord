@@ -87,6 +87,7 @@ export interface ApexProfile {
 
 export interface ApexApiClient {
   getProfile(input: ApexLookupInput): Promise<ApexProfile>;
+  getMapRotation?(): Promise<ApexMapRotation>;
 }
 
 export type ApexLookupSource = 'manual' | 'member' | 'self';
@@ -130,6 +131,56 @@ export interface ApexLegendCard {
   legendName: string;
 }
 
+export interface ApexRankCard {
+  target: ApexResolvedTarget;
+  title: string;
+  description: string;
+  url: string;
+  thumbnailUrl?: string;
+  color: number;
+  fields: ApexEmbedField[];
+  footer: string;
+}
+
+export interface ApexCompareCard {
+  title: string;
+  description: string;
+  color: number;
+  fields: ApexEmbedField[];
+  footer: string;
+}
+
+export interface ApexSquadCard {
+  title: string;
+  description: string;
+  color: number;
+  fields: ApexEmbedField[];
+  footer: string;
+}
+
+export interface ApexWatchCard {
+  title: string;
+  description: string;
+  color: number;
+  fields: ApexEmbedField[];
+  footer: string;
+}
+
+export interface ApexMapRotation {
+  current: {
+    map: string;
+    mode?: string;
+    remainingSeconds?: number;
+    endsAt?: string;
+  };
+  next?: {
+    map: string;
+    mode?: string;
+    startsAt?: string;
+  };
+  source: string;
+}
+
 export interface ApexLegendRequest {
   requesterId: string;
   legend: string;
@@ -152,4 +203,15 @@ export interface ApexService {
   getOverviewForMember(discordUserId: string): Promise<ApexOverviewCard>;
   getOverviewForLookup(input: ApexLookupInput): Promise<ApexOverviewCard>;
   getLegendForRequest(input: ApexLegendRequest): Promise<ApexLegendCard>;
+  getRankForRequest(input: {
+    requesterId: string;
+    memberId?: string;
+  }): Promise<ApexRankCard>;
+  compareLinkedAccounts(input: {
+    requesterId: string;
+    memberId: string;
+  }): Promise<ApexCompareCard>;
+  getSquadCard(discordUserIds: string[]): Promise<ApexSquadCard>;
+  getMapRotation(): Promise<ApexMapRotation>;
+  watchAccount(discordUserId: string): Promise<ApexWatchCard>;
 }

@@ -1,12 +1,16 @@
 import { getPlatformLabel } from './platform';
 import {
   ApexError,
+  type ApexCompareCard,
   type ApexLegendCard,
   type ApexOverviewCard,
   type ApexProfile,
   type ApexProfileSegment,
   type ApexProfileStat,
+  type ApexRankCard,
   type ApexResolvedTarget,
+  type ApexSquadCard,
+  type ApexWatchCard,
 } from './types';
 
 const DEFAULT_EMBED_COLOR = 0xda292a;
@@ -40,6 +44,9 @@ const formatNumericValue = (value: number): string =>
   Number.isInteger(value)
     ? numberFormatter.format(value)
     : numberFormatter.format(value);
+
+const getNumericStatValue = (stat?: ApexProfileStat): number | undefined =>
+  typeof stat?.value === 'number' ? stat.value : undefined;
 
 const formatStatValue = (stat?: ApexProfileStat): string => {
   if (!stat) {
@@ -480,6 +487,186 @@ export const buildLegendCard = (
     ],
     footer: `${getProviderName(profile)} • ${getPlatformLabel(target.appPlatform)}`,
     legendName,
+  };
+};
+
+export const buildRankCard = (
+  profile: ApexProfile,
+  target: ApexResolvedTarget,
+): ApexRankCard => {
+  const displayName = getPlayerDisplayName(profile, target.displayName);
+  const overview = getOverviewStatBlock(profile);
+
+  return {
+    target: {
+      ...target,
+      displayName,
+    },
+    title: `Apex Rank: ${displayName}`,
+    description: `Rank snapshot for ${getPlatformLabel(target.appPlatform)}.`,
+    url: getProfileUrl(target),
+    thumbnailUrl: profile.platformInfo.avatarUrl,
+    color: DEFAULT_EMBED_COLOR,
+    fields: [
+      {
+        name: 'Current Rank',
+        value: overview.rankScore
+          ? formatRankValue(overview.rankScore)
+          : 'Unranked or unavailable',
+        inline: false,
+      },
+      {
+        name: 'Progress',
+        value:
+          [
+            formatStatLine('Level', overview.level),
+            overview.peakRank
+              ? `Peak Rank: **${formatRankValue(overview.peakRank)}**`
+              : undefined,
+          ]
+            .filter((line): line is string => Boolean(line))
+            .join('\n') || 'No extra ranked progression values were returned.',
+        inline: false,
+      },
+    ],
+    footer: `${getProviderName(profile)} • ${getPlatformLabel(target.appPlatform)}`,
+  };
+};
+
+export const buildCompareCard = (
+  leftProfile: ApexProfile,
+  leftTarget: ApexResolvedTarget,
+  rightProfile: ApexProfile,
+  rightTarget: ApexResolvedTarget,
+): ApexCompareCard => {
+  const leftName = getPlayerDisplayName(leftProfile, leftTarget.displayName);
+  const rightName = getPlayerDisplayName(rightProfile, rightTarget.displayName);
+  const left = getOverviewStatBlock(leftProfile);
+  const right = getOverviewStatBlock(rightProfile);
+  const rows = [
+    ['Level', left.level, right.level],
+    ['Rank Score', left.rankScore, right.rankScore],
+    ['Kills', left.kills, right.kills],
+    ['Wins', left.wins, right.wins],
+    ['Damage', left.damage, right.damage],
+    ['Matches', left.matches, right.matches],
+  ];
+
+  return {
+    title: `Apex Compare: ${leftName} vs ${rightName}`,
+    description:
+      'Side-by-side comparison using the reliable public stats returned by the active provider.',
+    color: DEFAULT_EMBED_COLOR,
+    fields: rows.map(([label, leftStat, rightStat]) => ({
+      name: label as string,
+      value: `**${leftName}:** ${formatStatValue(
+        leftStat as ApexProfileStat | undefined,
+      )}\n**${rightName}:** ${formatStatValue(
+        rightStat as ApexProfileStat | undefined,
+      )}`,
+      inline: true,
+    })),
+    footer: `${getProviderName(leftProfile)} • ${getPlatformLabel(leftTarget.appPlatform)}`,
+  };
+};
+
+export const buildSquadCard = (
+  entries: Array<{ profile: ApexProfile; target: ApexResolvedTarget }>,
+): ApexSquadCard => ({
+  title: 'Apex Squad',
+  description: 'Linked squad snapshot for this server.',
+  color: DEFAULT_EMBED_COLOR,
+  fields: entries.map(({ profile, target }) => {
+    const overview = getOverviewStatBlock(profile);
+    const displayName = getPlayerDisplayName(profile, target.displayName);
+
+    return {
+      name: displayName,
+      value: [
+        `Rank: **${
+          overview.rankScore ? formatRankValue(overview.rankScore) : 'N/A'
+        }**`,
+        `Level: **${formatStatValue(overview.level)}**`,
+        `Kills: **${formatStatValue(overview.kills)}**`,
+        `Wins: **${formatStatValue(overview.wins)}**`,
+      ].join('\n'),
+      inline: true,
+    };
+  }),
+  footer:
+    entries.length > 0
+      ? `${getProviderName(entries[0].profile)} • ${entries.length} member(s)`
+      : 'No linked members',
+});
+
+export const extractWatchStats = (
+  profile: ApexProfile,
+): Record<string, number> => {
+  const overview = getOverviewStatBlock(profile);
+  const entries = {
+    level: getNumericStatValue(overview.level),
+    rankScore: getNumericStatValue(overview.rankScore),
+    kills: getNumericStatValue(overview.kills),
+    wins: getNumericStatValue(overview.wins),
+    damage: getNumericStatValue(overview.damage),
+    matches: getNumericStatValue(overview.matches),
+  };
+
+  return Object.fromEntries(
+    Object.entries(entries).filter(
+      (entry): entry is [string, number] => typeof entry[1] === 'number',
+    ),
+  );
+};
+
+export const buildWatchCard = (
+  target: ApexResolvedTarget,
+  previousStats: Record<string, number> | null,
+  currentStats: Record<string, number>,
+  previousCapturedAt?: string,
+): ApexWatchCard => {
+  const labels: Record<string, string> = {
+    level: 'Level',
+    rankScore: 'Rank Score',
+    kills: 'Kills',
+    wins: 'Wins',
+    damage: 'Damage',
+    matches: 'Matches',
+  };
+  const fields = Object.entries(currentStats).map(([key, value]) => {
+    const previous = previousStats?.[key];
+    const delta = typeof previous === 'number' ? value - previous : null;
+    const deltaText =
+      delta === null
+        ? 'New baseline'
+        : delta === 0
+          ? 'No change'
+          : `${delta > 0 ? '+' : ''}${formatNumericValue(delta)}`;
+
+    return {
+      name: labels[key] ?? key,
+      value: `Current: **${formatNumericValue(value)}**\nChange: **${deltaText}**`,
+      inline: true,
+    };
+  });
+
+  return {
+    title: `Apex Watch: ${target.displayName}`,
+    description: previousStats
+      ? `Changes since ${previousCapturedAt ?? 'the last snapshot'}.`
+      : 'Baseline saved. Run this again later to see changes.',
+    color: DEFAULT_EMBED_COLOR,
+    fields:
+      fields.length > 0
+        ? fields
+        : [
+            {
+              name: 'Stats',
+              value: 'No numeric watchable stats were returned.',
+              inline: false,
+            },
+          ],
+    footer: `${getPlatformLabel(target.appPlatform)} • watch snapshot updated`,
   };
 };
 

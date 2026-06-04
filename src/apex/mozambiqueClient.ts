@@ -4,6 +4,7 @@ import {
   ApexError,
   type ApexApiClient,
   type ApexLookupInput,
+  type ApexMapRotation,
   type ApexProfile,
   type ApexProfileSegment,
   type ApexProfileStat,
@@ -298,6 +299,68 @@ class MozambiqueApexApiClient implements ApexApiClient {
     }
 
     return normalizeMozambiqueProfile(payload, uid ?? 'Unknown');
+  }
+
+  async getMapRotation(): Promise<ApexMapRotation> {
+    const searchParams = new URLSearchParams({
+      auth: this.apiKey,
+      version: '2',
+    });
+    const payload = await this.requestJson(
+      `/maprotation?${searchParams.toString()}`,
+      'Apex',
+    );
+    const battleRoyale =
+      asStringMap(payload.battle_royale) ||
+      asStringMap(payload.battleRoyale) ||
+      asStringMap(payload);
+    const current = asStringMap(battleRoyale.current);
+    const next = asStringMap(battleRoyale.next);
+    const remainingSeconds =
+      asNumber(current.DurationInSecs) ??
+      asNumber(current.remainingSecs) ??
+      asNumber(current.remainingSeconds);
+    const endTimestamp =
+      asNumber(current.end) ??
+      asNumber(current.endTimestamp) ??
+      asNumber(current.endTime);
+    const startTimestamp =
+      asNumber(next.start) ??
+      asNumber(next.startTimestamp) ??
+      asNumber(next.startTime);
+    const currentMap =
+      asString(current.map) ??
+      asString(current.Map) ??
+      asString(current.readableDate_start);
+
+    if (!currentMap) {
+      throw new ApexError(
+        'provider_error',
+        'Apex Legends Status returned map rotation data in an unexpected shape.',
+      );
+    }
+
+    return {
+      current: {
+        map: currentMap,
+        mode: asString(battleRoyale.mode) ?? 'Battle Royale',
+        remainingSeconds:
+          typeof remainingSeconds === 'number' ? remainingSeconds : undefined,
+        endsAt:
+          typeof endTimestamp === 'number'
+            ? new Date(endTimestamp * 1000).toISOString()
+            : undefined,
+      },
+      next: {
+        map: asString(next.map) ?? asString(next.Map) ?? 'Unknown',
+        mode: asString(battleRoyale.mode) ?? 'Battle Royale',
+        startsAt:
+          typeof startTimestamp === 'number'
+            ? new Date(startTimestamp * 1000).toISOString()
+            : undefined,
+      },
+      source: 'Apex Legends Status',
+    };
   }
 
   private async requestJson(

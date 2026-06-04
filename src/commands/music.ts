@@ -12,12 +12,44 @@ import { createQueueSnapshot } from '../music/queueState';
 const formatPercent = (threshold: number): string =>
   `${Math.round(threshold * 100)}%`;
 
+const formatListenTime = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  return `${minutes}m`;
+};
+
+const formatRestoreAge = (milliseconds: number): string => {
+  if (milliseconds === 0) {
+    return 'Disabled';
+  }
+
+  if (milliseconds < 60_000) {
+    return `${Math.max(1, Math.round(milliseconds / 1000))}s`;
+  }
+
+  const hours = milliseconds / 3_600_000;
+
+  if (hours >= 24 && hours % 24 === 0) {
+    return `${hours / 24}d`;
+  }
+
+  if (hours >= 1 && Number.isInteger(hours)) {
+    return `${hours}h`;
+  }
+
+  return `${Math.round(milliseconds / 60_000)}m`;
+};
+
 export const musicCommand: CommandModule = {
   data: new SlashCommandBuilder()
     .setName('music')
     .setDescription('View and manage server-wide music settings.')
     .setDMPermission(false)
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommandGroup((group) =>
       group
         .setName('settings')
@@ -90,6 +122,13 @@ export const musicCommand: CommandModule = {
         )
         .addSubcommand((subcommand) =>
           subcommand
+            .setName('clear-saved-queue')
+            .setDescription(
+              'Clear the saved queue recovery snapshot for this server.',
+            ),
+        )
+        .addSubcommand((subcommand) =>
+          subcommand
             .setName('voteskip')
             .setDescription('Turn shared vote skip on or off.')
             .addBooleanOption((option) =>
@@ -112,14 +151,194 @@ export const musicCommand: CommandModule = {
                 .setMaxValue(100),
             ),
         ),
+    )
+    .addSubcommandGroup((group) =>
+      group
+        .setName('stats')
+        .setDescription('View listening stats.')
+        .addSubcommand((subcommand) =>
+          subcommand.setName('me').setDescription('Show your listening stats.'),
+        )
+        .addSubcommand((subcommand) =>
+          subcommand
+            .setName('server')
+            .setDescription('Show server listening stats.'),
+        ),
+    )
+    .addSubcommandGroup((group) =>
+      group
+        .setName('top')
+        .setDescription('Show music leaderboards.')
+        .addSubcommand((subcommand) =>
+          subcommand
+            .setName('tracks')
+            .setDescription('Show the most-played tracks.'),
+        )
+        .addSubcommand((subcommand) =>
+          subcommand
+            .setName('artists')
+            .setDescription('Show the most-played artists.'),
+        ),
     ),
   execute: async (context) => {
     const group = context.interaction.options.getSubcommandGroup(true);
     const subcommand = context.interaction.options.getSubcommand(true);
     const guildId = context.interaction.guildId;
 
+    if (group === 'stats') {
+      switch (subcommand) {
+        case 'me': {
+          const stats = context.musicStats.getUserStats(
+            guildId,
+            context.interaction.user.id,
+          );
+          const embed = new EmbedBuilder()
+            .setColor(0x4f9eed)
+            .setTitle('Your Listening Stats')
+            .addFields(
+              {
+                name: 'Tracks Played',
+                value: `\`${stats.trackCount}\``,
+                inline: true,
+              },
+              {
+                name: 'Listening Time',
+                value: `\`${formatListenTime(stats.totalSeconds)}\``,
+                inline: true,
+              },
+              {
+                name: 'Favorite Artist',
+                value: stats.favoriteArtist
+                  ? `**${stats.favoriteArtist.name}** (${stats.favoriteArtist.plays})`
+                  : '`None yet`',
+                inline: true,
+              },
+              {
+                name: 'Streak',
+                value: `Current: \`${stats.currentStreakDays}d\`\nLongest: \`${stats.longestStreakDays}d\``,
+                inline: true,
+              },
+              {
+                name: 'Badges',
+                value:
+                  stats.badges.length > 0
+                    ? stats.badges.map((badge) => `\`${badge}\``).join(' ')
+                    : '`None yet`',
+                inline: false,
+              },
+            )
+            .setTimestamp();
+
+          await context.interaction.reply({ embeds: [embed], ephemeral: true });
+          return;
+        }
+        case 'server':
+        default: {
+          const stats = context.musicStats.getServerStats(guildId);
+          const embed = new EmbedBuilder()
+            .setColor(0x4f9eed)
+            .setTitle('Server Listening Stats')
+            .addFields(
+              {
+                name: 'Tracks Played',
+                value: `\`${stats.trackCount}\``,
+                inline: true,
+              },
+              {
+                name: 'Listening Time',
+                value: `\`${formatListenTime(stats.totalSeconds)}\``,
+                inline: true,
+              },
+              {
+                name: 'Requesters',
+                value: `\`${stats.requesterCount}\``,
+                inline: true,
+              },
+              {
+                name: 'Top Track',
+                value: stats.topTrack
+                  ? `[${stats.topTrack.title}](${stats.topTrack.url}) (${stats.topTrack.plays})`
+                  : '`None yet`',
+                inline: false,
+              },
+              {
+                name: 'Top Artist',
+                value: stats.topArtist
+                  ? `**${stats.topArtist.name}** (${stats.topArtist.plays})`
+                  : '`None yet`',
+                inline: true,
+              },
+              {
+                name: 'Top Requester',
+                value: stats.topRequester
+                  ? `<@${stats.topRequester.userId}> (${stats.topRequester.plays})`
+                  : '`None yet`',
+                inline: true,
+              },
+            )
+            .setTimestamp();
+
+          await context.interaction.reply({ embeds: [embed] });
+          return;
+        }
+      }
+    }
+
+    if (group === 'top') {
+      if (subcommand === 'tracks') {
+        const tracks = context.musicStats.getTopTracks(guildId, 10);
+        const embed = new EmbedBuilder()
+          .setColor(0x4f9eed)
+          .setTitle('Top Tracks')
+          .setDescription(
+            tracks.length > 0
+              ? tracks
+                  .map(
+                    (track, index) =>
+                      `**${index + 1}.** [${track.title}](${track.url}) • \`${track.plays}\` play(s)`,
+                  )
+                  .join('\n')
+              : 'No tracks have been played yet.',
+          )
+          .setTimestamp();
+
+        await context.interaction.reply({ embeds: [embed] });
+        return;
+      }
+
+      const artists = context.musicStats.getTopArtists(guildId, 10);
+      const embed = new EmbedBuilder()
+        .setColor(0x4f9eed)
+        .setTitle('Top Artists')
+        .setDescription(
+          artists.length > 0
+            ? artists
+                .map(
+                  (artist, index) =>
+                    `**${index + 1}.** ${artist.name} • \`${artist.plays}\` play(s)`,
+                )
+                .join('\n')
+            : 'No artists have been played yet.',
+        )
+        .setTimestamp();
+
+      await context.interaction.reply({ embeds: [embed] });
+      return;
+    }
+
     if (group !== 'settings') {
       await context.replyError('That music command group is not available.');
+      return;
+    }
+
+    if (
+      !context.interaction.memberPermissions.has(
+        PermissionFlagsBits.ManageGuild,
+      )
+    ) {
+      await context.replyError(
+        'You need Manage Server permission to change music settings.',
+      );
       return;
     }
 
@@ -200,6 +419,13 @@ export const musicCommand: CommandModule = {
         );
         return;
       }
+      case 'clear-saved-queue': {
+        await context.queueState.clear(guildId);
+        await context.replySuccess(
+          'Cleared the saved queue recovery snapshot for this server. Active playback was not changed.',
+        );
+        return;
+      }
       case 'voteskip-threshold': {
         const percent = context.interaction.options.getInteger('percent', true);
         const settings = await context.musicSettings.setVoteSkipThreshold(
@@ -252,6 +478,13 @@ export const musicCommand: CommandModule = {
               value: settings.twentyFourSevenEnabled
                 ? '`Enabled`'
                 : '`Disabled`',
+              inline: true,
+            },
+            {
+              name: 'Queue Restore Window',
+              value: `\`${formatRestoreAge(
+                context.config.music.queueRestoreMaxAgeMs,
+              )}\``,
               inline: true,
             },
           )

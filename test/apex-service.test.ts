@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { createApexService } from '../src/apex/service';
+import type { ApexWatchSnapshot, ApexWatchStore } from '../src/apex/watchStore';
 import {
   ApexError,
   type ApexApiClient,
@@ -31,6 +32,29 @@ class InMemoryLinkStore implements ApexLinkStore {
 
   async deleteLink(discordUserId: string): Promise<boolean> {
     return this.links.delete(discordUserId);
+  }
+}
+
+class InMemoryWatchStore implements ApexWatchStore {
+  private readonly snapshots = new Map<string, ApexWatchSnapshot>();
+
+  getSnapshot(discordUserId: string): ApexWatchSnapshot | null {
+    const snapshot = this.snapshots.get(discordUserId);
+    return snapshot
+      ? {
+          ...snapshot,
+          target: { ...snapshot.target },
+          stats: { ...snapshot.stats },
+        }
+      : null;
+  }
+
+  async setSnapshot(snapshot: ApexWatchSnapshot): Promise<void> {
+    this.snapshots.set(snapshot.discordUserId, {
+      ...snapshot,
+      target: { ...snapshot.target },
+      stats: { ...snapshot.stats },
+    });
   }
 }
 
@@ -389,5 +413,63 @@ describe('createApexService', () => {
     assert.equal(result.legendName, 'Wraith');
     assert.match(result.fields[1]?.value ?? '', /Kills: \*\*2,100\*\*/);
     assert.match(result.fields[1]?.value ?? '', /Damage: \*\*700,000\*\*/);
+  });
+
+  it('builds focused rank cards from linked accounts', async () => {
+    const client = new FakeApexClient(createProfile());
+    const service = createApexService({
+      client,
+      store: new InMemoryLinkStore([createLink('self-user', 'SelfName')]),
+    });
+
+    const result = await service.getRankForRequest({
+      requesterId: 'self-user',
+    });
+
+    assert.match(result.title, /Apex Rank/);
+    assert.match(result.fields[0]?.value ?? '', /Diamond II/);
+    assert.match(result.fields[1]?.value ?? '', /Peak Rank/);
+  });
+
+  it('builds compare and squad cards from linked accounts', async () => {
+    const client = new FakeApexClient(createProfile());
+    const service = createApexService({
+      client,
+      store: new InMemoryLinkStore([
+        createLink('self-user', 'SelfName'),
+        createLink('member-user', 'MemberName'),
+      ]),
+    });
+
+    const compare = await service.compareLinkedAccounts({
+      requesterId: 'self-user',
+      memberId: 'member-user',
+    });
+    const squad = await service.getSquadCard(['self-user', 'member-user']);
+
+    assert.match(compare.title, /vs/);
+    assert.ok(compare.fields.length >= 4);
+    assert.equal(squad.fields.length, 2);
+    assert.match(squad.fields[0]?.value ?? '', /Rank:/);
+  });
+
+  it('saves Apex watch baselines and reports later deltas', async () => {
+    const client = new FakeApexClient(createProfile());
+    const watchStore = new InMemoryWatchStore();
+    const service = createApexService({
+      client,
+      watchStore,
+      store: new InMemoryLinkStore([createLink('self-user', 'SelfName')]),
+    });
+
+    const baseline = await service.watchAccount('self-user');
+    const next = await service.watchAccount('self-user');
+
+    assert.match(baseline.description, /Baseline saved/);
+    assert.match(next.description, /Changes since/);
+    assert.match(
+      next.fields.map((field) => field.value).join('\n'),
+      /No change/,
+    );
   });
 });

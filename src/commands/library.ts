@@ -31,6 +31,11 @@ const formatSavedTrackLine = (track: SavedTrack, index: number): string =>
 const formatPlaylistSummary = (playlist: SavedPlaylist): string =>
   `**${playlist.name}** • \`${playlist.tracks.length}\` track(s)`;
 
+const formatPlaylistExport = (playlist: SavedPlaylist): string =>
+  playlist.tracks
+    .map((track, index) => `${index + 1}. ${track.title} - ${track.url}`)
+    .join('\n');
+
 const applyPlaylistNameOption = <
   T extends {
     setName(name: string): T;
@@ -362,6 +367,37 @@ const handlePlaylists = async (
         .setTimestamp();
 
       await context.interaction.reply({ embeds: [embed] });
+      return;
+    }
+    case 'export': {
+      const name = context.interaction.options.getString('name', true);
+      const playlist = context.musicLibrary.getPlaylist(guildId, name);
+
+      if (!playlist) {
+        await context.replyError(`Playlist **${name}** does not exist.`);
+        return;
+      }
+
+      if (playlist.tracks.length === 0) {
+        await context.replyError(`Playlist **${playlist.name}** is empty.`);
+        return;
+      }
+
+      const exportText = formatPlaylistExport(playlist);
+      const description =
+        exportText.length <= 3900
+          ? `\`\`\`text\n${exportText}\n\`\`\``
+          : `This playlist has **${playlist.tracks.length}** tracks, so here are the first links:\n\`\`\`text\n${exportText.slice(
+              0,
+              3600,
+            )}\n...\n\`\`\``;
+      const embed = new EmbedBuilder()
+        .setColor(0x4f9eed)
+        .setTitle(`Playlist Export: ${playlist.name}`)
+        .setDescription(description)
+        .setTimestamp();
+
+      await context.interaction.reply({ embeds: [embed], ephemeral: true });
       return;
     }
     case 'play': {
@@ -780,6 +816,12 @@ export const libraryCommand: CommandModule = {
           subcommand
             .setName('show')
             .setDescription('Show tracks in a server playlist.')
+            .addStringOption((option) => applyPlaylistNameOption(option)),
+        )
+        .addSubcommand((subcommand) =>
+          subcommand
+            .setName('export')
+            .setDescription('Export a server playlist as a text list of links.')
             .addStringOption((option) => applyPlaylistNameOption(option)),
         )
         .addSubcommand((subcommand) =>

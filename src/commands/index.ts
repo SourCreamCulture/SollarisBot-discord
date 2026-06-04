@@ -1,11 +1,16 @@
 import type { CommandModule } from '../types/bot';
 import { apexCommand } from './apex';
 import { botCommand } from './bot';
+import { eventCommand } from './event';
 import { libraryCommand } from './library';
 import { musicCommand } from './music';
 import { playCommand } from './play';
+import { pollCommand } from './poll';
 import { playerCommand } from './player';
 import { queueCommand } from './queue';
+import { remindCommand } from './remind';
+import { rollCommand } from './roll';
+import { valorantCommand } from './valorant';
 
 export const commands: CommandModule[] = [
   apexCommand,
@@ -15,6 +20,11 @@ export const commands: CommandModule[] = [
   queueCommand,
   libraryCommand,
   musicCommand,
+  pollCommand,
+  remindCommand,
+  rollCommand,
+  eventCommand,
+  valorantCommand,
 ];
 
 export const commandMap = new Map(

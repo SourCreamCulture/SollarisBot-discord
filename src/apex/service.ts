@@ -1,25 +1,37 @@
 import {
+  buildCompareCard,
   buildLegendCard,
   buildOverviewCard,
+  buildRankCard,
+  buildSquadCard,
+  buildWatchCard,
+  extractWatchStats,
   resolveProfileDisplayName,
 } from './mapper';
 import { assertSupportedApexPlatform, toProviderPlatform } from './platform';
+import type { ApexWatchStore } from './watchStore';
 import {
   ApexError,
   type ApexApiClient,
+  type ApexCompareCard,
   type ApexLegendCard,
   type ApexLegendRequest,
   type ApexLinkedAccount,
   type ApexLinkStore,
   type ApexLookupInput,
+  type ApexMapRotation,
   type ApexOverviewCard,
+  type ApexRankCard,
   type ApexResolvedTarget,
   type ApexService,
+  type ApexSquadCard,
+  type ApexWatchCard,
 } from './types';
 
 interface CreateApexServiceOptions {
   client: ApexApiClient;
   store: ApexLinkStore;
+  watchStore?: ApexWatchStore;
 }
 
 const sanitizeUsername = (username: string): string => username.trim();
@@ -48,6 +60,7 @@ class DefaultApexService implements ApexService {
   constructor(
     private readonly client: ApexApiClient,
     private readonly store: ApexLinkStore,
+    private readonly watchStore?: ApexWatchStore,
   ) {}
 
   getLinkedAccount(discordUserId: string): ApexLinkedAccount | null {
@@ -171,6 +184,121 @@ class DefaultApexService implements ApexService {
     return buildLegendCard(profile, target, input.legend);
   }
 
+  async getRankForRequest(input: {
+    requesterId: string;
+    memberId?: string;
+  }): Promise<ApexRankCard> {
+    const target = input.memberId
+      ? this.resolveStoredTarget(input.memberId, 'member')
+      : this.resolveStoredTarget(input.requesterId, 'self');
+    const profile = await this.client.getProfile({
+      appPlatform: target.appPlatform,
+      username: target.username,
+    });
+
+    return buildRankCard(profile, {
+      ...target,
+      displayName: resolveProfileDisplayName(profile, target.displayName),
+    });
+  }
+
+  async compareLinkedAccounts(input: {
+    requesterId: string;
+    memberId: string;
+  }): Promise<ApexCompareCard> {
+    const requesterTarget = this.resolveStoredTarget(input.requesterId, 'self');
+    const memberTarget = this.resolveStoredTarget(input.memberId, 'member');
+    const [requesterProfile, memberProfile] = await Promise.all([
+      this.client.getProfile({
+        appPlatform: requesterTarget.appPlatform,
+        username: requesterTarget.username,
+      }),
+      this.client.getProfile({
+        appPlatform: memberTarget.appPlatform,
+        username: memberTarget.username,
+      }),
+    ]);
+
+    return buildCompareCard(
+      requesterProfile,
+      requesterTarget,
+      memberProfile,
+      memberTarget,
+    );
+  }
+
+  async getSquadCard(discordUserIds: string[]): Promise<ApexSquadCard> {
+    const uniqueUserIds = [...new Set(discordUserIds)].slice(0, 5);
+    const targets = uniqueUserIds.map((userId) =>
+      this.resolveStoredTarget(userId, 'member'),
+    );
+    const entries = await Promise.all(
+      targets.map(async (target) => {
+        const profile = await this.client.getProfile({
+          appPlatform: target.appPlatform,
+          username: target.username,
+        });
+
+        return {
+          profile,
+          target: {
+            ...target,
+            displayName: resolveProfileDisplayName(profile, target.displayName),
+          },
+        };
+      }),
+    );
+
+    return buildSquadCard(entries);
+  }
+
+  async getMapRotation(): Promise<ApexMapRotation> {
+    if (!this.client.getMapRotation) {
+      throw new ApexError(
+        'unsupported_platform',
+        'Map rotation is only available when the Mozambique Apex provider is enabled.',
+      );
+    }
+
+    return this.client.getMapRotation();
+  }
+
+  async watchAccount(discordUserId: string): Promise<ApexWatchCard> {
+    if (!this.watchStore) {
+      throw new ApexError(
+        'config',
+        'Apex watch storage is not configured for this bot.',
+      );
+    }
+
+    const target = this.resolveStoredTarget(discordUserId, 'self');
+    const profile = await this.client.getProfile({
+      appPlatform: target.appPlatform,
+      username: target.username,
+    });
+    const resolvedTarget = {
+      ...target,
+      displayName: resolveProfileDisplayName(profile, target.displayName),
+    };
+    const currentStats = extractWatchStats(profile);
+    const previous = this.watchStore.getSnapshot(discordUserId);
+    const card = buildWatchCard(
+      resolvedTarget,
+      previous?.stats ?? null,
+      currentStats,
+      previous?.capturedAt,
+    );
+
+    await this.watchStore.setSnapshot({
+      discordUserId,
+      target: resolvedTarget,
+      stats: currentStats,
+      capturedAt: new Date().toISOString(),
+    });
+
+    return card;
+  }
+
   private async getOverviewForTarget(
     target: ApexResolvedTarget,
   ): Promise<ApexOverviewCard> {
@@ -262,5 +390,6 @@ class DefaultApexService implements ApexService {
 export const createApexService = ({
   client,
   store,
+  watchStore,
 }: CreateApexServiceOptions): ApexService =>
-  new DefaultApexService(client, store);
+  new DefaultApexService(client, store, watchStore);

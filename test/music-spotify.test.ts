@@ -6,6 +6,7 @@ import type { User } from 'discord.js';
 
 import {
   buildSavedTrackPlaybackRequest,
+  isSpotifyTrackQuery,
   resolveSpotifyPlaylistToYoutubeTracks,
 } from '../src/music/spotify';
 import type { BotConfig } from '../src/types/bot';
@@ -44,6 +45,23 @@ describe('music spotify helpers', () => {
     const playbackRequest = buildSavedTrackPlaybackRequest(
       config,
       createSavedTrack('https://open.spotify.com/track/1234567890123456789012'),
+    );
+
+    assert.equal(
+      playbackRequest.searchEngine,
+      config.music.youtubeSearchEngine,
+    );
+    assert.match(playbackRequest.query, /ellie goulding lights/i);
+  });
+
+  it('recognizes legacy plural Spotify track URLs from saved library imports', () => {
+    const legacyUrl = 'https://open.spotify.com/tracks/2799b6f5b391fbb4';
+
+    assert.equal(isSpotifyTrackQuery(legacyUrl), true);
+
+    const playbackRequest = buildSavedTrackPlaybackRequest(
+      config,
+      createSavedTrack(legacyUrl),
     );
 
     assert.equal(

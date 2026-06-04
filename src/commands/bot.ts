@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 
 import type { CommandModule } from '../types/bot';
@@ -30,9 +33,38 @@ export const botCommand: CommandModule = {
       subcommand
         .setName('status')
         .setDescription('Show bot health and uptime.'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('changelog')
+        .setDescription('Show recent bot updates.'),
     ),
   execute: async (context) => {
     const subcommand = context.interaction.options.getSubcommand(true);
+
+    if (subcommand === 'changelog') {
+      try {
+        const changelog = await readFile(resolve('CHANGELOG.md'), 'utf8');
+        const excerpt = changelog.trim().slice(0, 3900);
+        const embed = new EmbedBuilder()
+          .setColor(0x4f9eed)
+          .setTitle('SollarisBot Changelog')
+          .setDescription(excerpt || 'The changelog is empty.')
+          .setTimestamp();
+
+        await context.interaction.reply({ embeds: [embed], ephemeral: true });
+      } catch (error) {
+        const isMissingFile =
+          error instanceof Error && 'code' in error && error.code === 'ENOENT';
+
+        if (!isMissingFile) {
+          throw error;
+        }
+
+        await context.replyInfo('No changelog file has been created yet.');
+      }
+      return;
+    }
 
     if (subcommand !== 'status') {
       await context.replyError('That bot command is not available.');

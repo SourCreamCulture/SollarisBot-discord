@@ -2,6 +2,7 @@ import { Client, GatewayIntentBits, type User } from 'discord.js';
 
 import { migrateSavedSpotifyTracksToYoutube } from '../music/libraryMigration';
 import { createJsonMusicLibraryService } from '../music/library';
+import { DEFAULT_MUSIC_QUEUE_RESTORE_MAX_AGE_MS } from '../music/queueState';
 import { createMusicPlayer } from '../music/service';
 import type { BotConfig, LogLevel } from '../types/bot';
 import { createLogger } from '../utils/logger';
@@ -29,17 +30,28 @@ const createMigrationConfig = (): BotConfig => {
     apex: {
       provider: 'tracker',
       linksFile: '',
+      watchFile: '',
+    },
+    valorant: {
+      linksFile: '',
+      leaderboardStateFile: '',
+      leaderboardRefreshIntervalMs: 600_000,
     },
     music: {
       defaultVolume: 80,
       settingsFile: '',
       libraryFile,
+      statsFile: '',
       queueStateFile: '',
+      queueRestoreMaxAgeMs: DEFAULT_MUSIC_QUEUE_RESTORE_MAX_AGE_MS,
       voteSkipThreshold: 0.5,
       leaveOnEmptyCooldownMs: 0,
       leaveOnEndCooldownMs: 0,
       leaveOnStopCooldownMs: 0,
       youtubeSearchEngine: `ext:${youtubeExtractorId}`,
+    },
+    utility: {
+      storeFile: '',
     },
   };
 };
@@ -52,7 +64,7 @@ export const runSpotifyLibraryMigration = async (): Promise<void> => {
     logger,
   );
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
   });
   const player = await createMusicPlayer(client, config, logger);
   const requestedBy = { id: 'spotify-library-migration' } as User;
