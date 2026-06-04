@@ -38,7 +38,8 @@ const normalizeStat = (value: unknown): ApexProfileStat | undefined => {
     displayName:
       typeof value.displayName === 'string' ? value.displayName : undefined,
     displayCategory:
-      typeof value.displayCategory === 'string' || value.displayCategory === null
+      typeof value.displayCategory === 'string' ||
+      value.displayCategory === null
         ? value.displayCategory
         : undefined,
     category:
@@ -60,31 +61,34 @@ const normalizeSegment = (value: unknown): ApexProfileSegment | undefined => {
   }
 
   const rawStats = isObject(value.stats) ? value.stats : {};
-  const stats = Object.entries(rawStats).reduce<Record<string, ApexProfileStat>>(
-    (accumulator, [key, statValue]) => {
-      const normalized = normalizeStat(statValue);
+  const stats = Object.entries(rawStats).reduce<
+    Record<string, ApexProfileStat>
+  >((accumulator, [key, statValue]) => {
+    const normalized = normalizeStat(statValue);
 
-      if (normalized) {
-        accumulator[key] = normalized;
-      }
+    if (normalized) {
+      accumulator[key] = normalized;
+    }
 
-      return accumulator;
-    },
-    {},
-  );
+    return accumulator;
+  }, {});
 
   return {
     type: value.type,
     attributes: isObject(value.attributes) ? value.attributes : undefined,
     metadata: isObject(value.metadata) ? value.metadata : undefined,
     stats,
-    expiryDate: typeof value.expiryDate === 'string' ? value.expiryDate : undefined,
+    expiryDate:
+      typeof value.expiryDate === 'string' ? value.expiryDate : undefined,
   };
 };
 
 const normalizeProfile = (value: unknown): ApexProfile => {
   if (!isObject(value)) {
-    throw new ApexError('provider_error', 'Tracker returned an invalid Apex payload.');
+    throw new ApexError(
+      'provider_error',
+      'Tracker returned an invalid Apex payload.',
+    );
   }
 
   const segments = Array.isArray(value.segments)
@@ -104,12 +108,12 @@ const normalizeProfile = (value: unknown): ApexProfile => {
   const metadata = isObject(value.metadata) ? value.metadata : {};
 
   const availableSegments = Array.isArray(value.availableSegments)
-    ? value.availableSegments
-        .filter(isObject)
-        .map((segment) => ({
-          type: typeof segment.type === 'string' ? segment.type : 'unknown',
-          attributes: isObject(segment.attributes) ? segment.attributes : undefined,
-        }))
+    ? value.availableSegments.filter(isObject).map((segment) => ({
+        type: typeof segment.type === 'string' ? segment.type : 'unknown',
+        attributes: isObject(segment.attributes)
+          ? segment.attributes
+          : undefined,
+      }))
     : undefined;
 
   return {
@@ -134,7 +138,9 @@ const normalizeProfile = (value: unknown): ApexProfile => {
     userInfo: isObject(value.userInfo) ? value.userInfo : undefined,
     metadata: {
       activeLegend:
-        typeof metadata.activeLegend === 'string' ? metadata.activeLegend : undefined,
+        typeof metadata.activeLegend === 'string'
+          ? metadata.activeLegend
+          : undefined,
       activeLegendName:
         typeof metadata.activeLegendName === 'string'
           ? metadata.activeLegendName
@@ -209,7 +215,10 @@ class TrackerApexApiClient implements ApexApiClient {
     const payload = (await response.json()) as unknown;
 
     if (!isObject(payload)) {
-      throw new ApexError('provider_error', 'Tracker returned an invalid Apex payload.');
+      throw new ApexError(
+        'provider_error',
+        'Tracker returned an invalid Apex payload.',
+      );
     }
 
     return payload;

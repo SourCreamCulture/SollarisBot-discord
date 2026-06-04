@@ -12,8 +12,7 @@ import {
 } from './spotify';
 import type { BotConfig } from '../types/bot';
 
-export interface SavedSpotifyTrackMigrationResult
-  extends SavedTrackRewriteResult {
+export interface SavedSpotifyTrackMigrationResult extends SavedTrackRewriteResult {
   unresolvedTrackCount: number;
 }
 

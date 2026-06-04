@@ -1,8 +1,14 @@
-import { QueryType, type Player, type SearchQueryType, type Track } from 'discord-player';
+import {
+  QueryType,
+  type Player,
+  type SearchQueryType,
+  type Track,
+} from 'discord-player';
 import type { User } from 'discord.js';
 
 import type { BotConfig } from '../types/bot';
 import type { SavedTrack } from './library';
+import { UserFacingError } from '../utils/errors';
 
 const SPOTIFY_PLAYLIST_QUERY_PATTERN =
   /(?:spotify:playlist:|open\.spotify\.com\/(?:intl-[^/]+\/)?playlist\/)/i;
@@ -39,8 +45,14 @@ const sanitizeTrackTitle = (title: string): string =>
     title
       .replace(/\s*\((?:feat\.?|ft\.?|with)\b[^)]*\)/gi, ' ')
       .replace(/\s*\[(?:feat\.?|ft\.?|with)\b[^\]]*\]/gi, ' ')
-      .replace(/\s*\((?:official|audio|video|visualizer|lyrics?|remaster(?:ed)?|live)\b[^)]*\)/gi, ' ')
-      .replace(/\s*\[(?:official|audio|video|visualizer|lyrics?|remaster(?:ed)?|live)\b[^\]]*\]/gi, ' '),
+      .replace(
+        /\s*\((?:official|audio|video|visualizer|lyrics?|remaster(?:ed)?|live)\b[^)]*\)/gi,
+        ' ',
+      )
+      .replace(
+        /\s*\[(?:official|audio|video|visualizer|lyrics?|remaster(?:ed)?|live)\b[^\]]*\]/gi,
+        ' ',
+      ),
   );
 
 const buildYoutubeSearchQueries = (title: string, author: string): string[] => {
@@ -88,7 +100,8 @@ export const buildSavedTrackPlaybackRequest = (
 ): SavedTrackPlaybackRequest => {
   if (isSpotifyTrackQuery(track.url)) {
     return {
-      query: buildYoutubeSearchQueries(track.title, track.author)[0] ?? track.title,
+      query:
+        buildYoutubeSearchQueries(track.title, track.author)[0] ?? track.title,
       searchEngine: config.music.youtubeSearchEngine,
     };
   }
@@ -127,12 +140,12 @@ export const resolveSpotifyPlaylistToYoutubeTracks = async (
   });
 
   if (spotifyResult.isEmpty() || !spotifyResult.playlist) {
-    throw new Error('I could not read that Spotify playlist.');
+    throw new UserFacingError('I could not read that Spotify playlist.');
   }
 
-  const resolvedTracks: Array<Track | null> = new Array(spotifyResult.tracks.length).fill(
-    null,
-  );
+  const resolvedTracks: Array<Track | null> = new Array(
+    spotifyResult.tracks.length,
+  ).fill(null);
   const unresolvedTracks: SpotifyPlaylistResolution['unresolvedTracks'] = [];
   const cache = new Map<string, Track | null>();
   let nextIndex = 0;
@@ -173,7 +186,12 @@ export const resolveSpotifyPlaylistToYoutubeTracks = async (
 
   await Promise.all(
     Array.from(
-      { length: Math.min(SPOTIFY_RESOLUTION_CONCURRENCY, spotifyResult.tracks.length) },
+      {
+        length: Math.min(
+          SPOTIFY_RESOLUTION_CONCURRENCY,
+          spotifyResult.tracks.length,
+        ),
+      },
       () => worker(),
     ),
   );
@@ -182,7 +200,9 @@ export const resolveSpotifyPlaylistToYoutubeTracks = async (
     title: spotifyResult.playlist.title,
     sourceUrl: spotifyResult.playlist.url,
     requestedTrackCount: spotifyResult.tracks.length,
-    resolvedTracks: resolvedTracks.filter((track): track is Track => Boolean(track)),
+    resolvedTracks: resolvedTracks.filter((track): track is Track =>
+      Boolean(track),
+    ),
     unresolvedTracks,
   };
 };

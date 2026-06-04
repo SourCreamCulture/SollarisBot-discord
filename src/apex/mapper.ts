@@ -152,7 +152,9 @@ const getOverviewSegment = (profile: ApexProfile): ApexProfileSegment => {
   return overviewSegment;
 };
 
-const getActiveLegendSegment = (profile: ApexProfile): ApexProfileSegment | undefined => {
+const getActiveLegendSegment = (
+  profile: ApexProfile,
+): ApexProfileSegment | undefined => {
   const activeLegendName = profile.metadata.activeLegendName;
 
   if (activeLegendName) {
@@ -165,7 +167,8 @@ const getActiveLegendSegment = (profile: ApexProfile): ApexProfileSegment | unde
   }
 
   return profile.segments.find(
-    (segment) => segment.type === 'legend' && segment.metadata?.isActive === true,
+    (segment) =>
+      segment.type === 'legend' && segment.metadata?.isActive === true,
   );
 };
 
@@ -198,10 +201,7 @@ const findStat = (
   return undefined;
 };
 
-const getPlayerDisplayName = (
-  profile: ApexProfile,
-  fallback: string,
-): string =>
+const getPlayerDisplayName = (profile: ApexProfile, fallback: string): string =>
   profile.platformInfo.platformUserHandle ??
   profile.platformInfo.platformUserIdentifier ??
   fallback;
@@ -220,7 +220,9 @@ const getOverviewStatBlock = (
   peakRank?: ApexProfileStat;
 } => {
   const stats = getOverviewSegment(profile).stats ?? {};
-  const findStatByKeyFragment = (fragment: string): ApexProfileStat | undefined =>
+  const findStatByKeyFragment = (
+    fragment: string,
+  ): ApexProfileStat | undefined =>
     Object.entries(stats)
       .filter(
         ([key, stat]) =>
@@ -268,7 +270,9 @@ const getOverviewStatBlock = (
   };
 };
 
-const selectLegendStats = (legendSegment: ApexProfileSegment): ApexProfileStat[] => {
+const selectLegendStats = (
+  legendSegment: ApexProfileSegment,
+): ApexProfileStat[] => {
   const stats = legendSegment.stats ?? {};
   const preferredKeys = [
     'kills',
@@ -395,8 +399,7 @@ export const buildOverviewCard = (
 
   fields.push({
     name: 'Data Note',
-    value:
-      `Apex does not expose complete career stats through this provider. This view only highlights reliable account snapshot values plus current-season or unscoped public trackers returned by the API.`,
+    value: `Apex does not expose complete career stats through this provider. This view only highlights reliable account snapshot values plus current-season or unscoped public trackers returned by the API.`,
     inline: false,
   });
 
@@ -457,7 +460,8 @@ export const buildLegendCard = (
       asString(legendSegment.metadata?.portraitImageUrl) ??
       asString(legendSegment.metadata?.imageUrl) ??
       profile.platformInfo.avatarUrl,
-    color: parseColor(legendSegment.metadata?.legendColor) ?? DEFAULT_EMBED_COLOR,
+    color:
+      parseColor(legendSegment.metadata?.legendColor) ?? DEFAULT_EMBED_COLOR,
     fields: [
       {
         name: 'Lookup',

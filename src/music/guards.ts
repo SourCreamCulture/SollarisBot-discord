@@ -5,7 +5,11 @@ import {
   type VoiceBasedChannel,
 } from 'discord.js';
 
-import type { CommandContext, GuildMusicSession, MusicMetadata } from '../types/bot';
+import type {
+  CommandContext,
+  GuildMusicSession,
+  MusicMetadata,
+} from '../types/bot';
 import { getGuildSession, updateSessionMetadata } from './service';
 
 export const resolveMember = async (
@@ -52,7 +56,9 @@ export const requireGuildSession = async (
   const queue = getGuildSession(context.player, context.interaction.guildId);
 
   if (!queue) {
-    await context.replyError('There is no active music session in this server yet.');
+    await context.replyError(
+      'There is no active music session in this server yet.',
+    );
     return null;
   }
 
@@ -76,7 +82,10 @@ export const ensureSameVoiceChannel = async (
 
 export const requireControllableSession = async (
   context: CommandContext,
-): Promise<{ queue: GuildMusicSession; voiceChannel: VoiceBasedChannel } | null> => {
+): Promise<{
+  queue: GuildMusicSession;
+  voiceChannel: VoiceBasedChannel;
+} | null> => {
   const voiceChannel = await requireVoiceChannel(context);
 
   if (!voiceChannel) {

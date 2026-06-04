@@ -11,8 +11,13 @@ import {
 import type { Player } from 'discord-player';
 
 import type { GuildMusicSession } from '../types/bot';
-import { describeRepeatMode, formatTrackLine, getGuildSession } from './service';
+import {
+  describeRepeatMode,
+  formatTrackLine,
+  getGuildSession,
+} from './service';
 import type { Logger } from '../utils/logger';
+import { createQueueSnapshot, type QueueStateService } from './queueState';
 import type { MusicSettingsService } from './settings';
 
 const CONTROL_PREFIX = 'music-control:';
@@ -155,6 +160,7 @@ export class MusicPanelManager {
   constructor(
     private readonly player: Player,
     private readonly logger: Logger,
+    private readonly queueState: QueueStateService,
   ) {}
 
   async render(queue: GuildMusicSession): Promise<void> {
@@ -177,7 +183,10 @@ export class MusicPanelManager {
         return;
       }
     } catch (error) {
-      this.logger.warn('Failed to edit existing music panel, sending a new one.', error);
+      this.logger.warn(
+        'Failed to edit existing music panel, sending a new one.',
+        error,
+      );
     }
 
     const message = await channel.send(payload);
@@ -229,7 +238,9 @@ export class MusicPanelManager {
       return false;
     }
 
-    const action = interaction.customId.slice(CONTROL_PREFIX.length) as ControlAction;
+    const action = interaction.customId.slice(
+      CONTROL_PREFIX.length,
+    ) as ControlAction;
     const queue = getGuildSession(this.player, interaction.guildId);
 
     if (!queue) {
@@ -242,7 +253,10 @@ export class MusicPanelManager {
 
     const settings = musicSettings.getSettings(interaction.guildId);
 
-    if (settings.textChannelId && settings.textChannelId !== interaction.channelId) {
+    if (
+      settings.textChannelId &&
+      settings.textChannelId !== interaction.channelId
+    ) {
       await interaction.reply({
         content: `Music controls are bound to <#${settings.textChannelId}> in this server.`,
         ephemeral: true,
@@ -263,7 +277,8 @@ export class MusicPanelManager {
 
     if (!voiceChannel || !voiceChannel.isVoiceBased()) {
       await interaction.reply({
-        content: 'You need to join a voice channel before using music controls.',
+        content:
+          'You need to join a voice channel before using music controls.',
         ephemeral: true,
       });
       return true;
@@ -315,13 +330,26 @@ export class MusicPanelManager {
         } else {
           queue.node.pause();
         }
+        {
+          const snapshot = createQueueSnapshot(queue);
+          if (snapshot) {
+            await this.queueState.save(snapshot);
+          }
+        }
         break;
       case 'skip':
         queue.node.skip();
+        {
+          const snapshot = createQueueSnapshot(queue);
+          if (snapshot) {
+            await this.queueState.save(snapshot);
+          }
+        }
         break;
       case 'stop':
         queue.clear();
         queue.node.stop();
+        await this.queueState.clear(interaction.guildId);
         break;
       default:
         break;

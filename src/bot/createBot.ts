@@ -12,18 +12,23 @@ import { createTrackerApexApiClient } from '../apex/client';
 import { createMozambiqueApexApiClient } from '../apex/mozambiqueClient';
 import { createApexService } from '../apex/service';
 import { createJsonApexLinkStore } from '../apex/store';
+import { ApexError } from '../apex/types';
 import { commandMap, djCommandNames, musicCommandNames } from '../commands';
 import type { BotConfig } from '../types/bot';
-import { createAutocompleteContext, createCommandContext } from '../utils/interaction';
-import type { Logger } from '../utils/logger';
 import {
-  createMusicPlayer,
-  restoreSavedQueue,
-} from '../music/service';
+  createAutocompleteContext,
+  createCommandContext,
+} from '../utils/interaction';
+import type { Logger } from '../utils/logger';
+import { UserFacingError } from '../utils/errors';
+import { createMusicPlayer, restoreSavedQueue } from '../music/service';
 import { handleMusicSearchSelect } from '../music/searchInteractions';
 import { createJsonMusicLibraryService } from '../music/library';
 import { MusicPanelManager } from '../music/panel';
-import { createJsonQueueStateService, createQueueSnapshot } from '../music/queueState';
+import {
+  createJsonQueueStateService,
+  createQueueSnapshot,
+} from '../music/queueState';
 import { createJsonMusicSettingsService } from '../music/settings';
 import { VoteSkipManager } from '../music/voteSkip';
 import {
@@ -38,7 +43,6 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
 
   const voteSkips = new VoteSkipManager();
   const player = await createMusicPlayer(client, config, logger, voteSkips);
-  const musicPanel = new MusicPanelManager(player, logger);
   const musicLibrary = await createJsonMusicLibraryService(
     config.music.libraryFile,
     logger,
@@ -52,10 +56,17 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
     config,
     logger,
   );
-  const apexLinkStore = await createJsonApexLinkStore(config.apex.linksFile, logger);
+  const musicPanel = new MusicPanelManager(player, logger, queueState);
+  const apexLinkStore = await createJsonApexLinkStore(
+    config.apex.linksFile,
+    logger,
+  );
   const apexClient =
     config.apex.provider === 'mozambique'
-      ? createMozambiqueApexApiClient(config.apex.mozambiqueApiKey ?? '', logger)
+      ? createMozambiqueApexApiClient(
+          config.apex.mozambiqueApiKey ?? '',
+          logger,
+        )
       : createTrackerApexApiClient(config.apex.trackerApiKey ?? '', logger);
   const apexService = createApexService({
     client: apexClient,
@@ -68,7 +79,9 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
       for (const state of queueState.getAll()) {
         try {
           const settings = musicSettings.getSettings(state.guildId);
-          const voiceChannel = await client.channels.fetch(state.voiceChannelId);
+          const voiceChannel = await client.channels.fetch(
+            state.voiceChannelId,
+          );
           const textChannel = await client.channels.fetch(state.textChannelId);
 
           if (!voiceChannel?.isVoiceBased() || !textChannel?.isTextBased()) {
@@ -95,9 +108,7 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
     })();
   });
 
-  const handleInteraction = async (
-    interaction: Interaction,
-  ) => {
+  const handleInteraction = async (interaction: Interaction) => {
     if (
       await handleMusicSearchSelect(
         interaction,
@@ -136,7 +147,10 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
       try {
         await command.autocomplete(context);
       } catch (error) {
-        logger.error(`Autocomplete failed for /${interaction.commandName}`, error);
+        logger.error(
+          `Autocomplete failed for /${interaction.commandName}`,
+          error,
+        );
       }
 
       return;
@@ -187,30 +201,30 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
 
       await command.execute(context);
     } catch (error) {
-      logger.error(`Command execution failed for /${interaction.commandName}`, error);
+      logger.error(
+        `Command execution failed for /${interaction.commandName}`,
+        error,
+      );
 
-      const message =
-        error instanceof Error ? error.message : 'Unknown command failure.';
+      // Only surface messages that were deliberately written for users.
+      // Anything else is unexpected: it has been logged above, and the user
+      // sees a generic message so internal details never leak to Discord.
+      const content =
+        error instanceof UserFacingError || error instanceof ApexError
+          ? error.message
+          : 'Something went wrong while running this command. The error has been logged.';
 
       if (interaction.deferred) {
-        await interaction.editReply({
-          content: `Something went wrong while running this command: ${message}`,
-        });
+        await interaction.editReply({ content });
         return;
       }
 
       if (interaction.replied) {
-        await interaction.followUp({
-          content: `Something went wrong while running this command: ${message}`,
-          ephemeral: true,
-        });
+        await interaction.followUp({ content, ephemeral: true });
         return;
       }
 
-      await interaction.reply({
-        content: `Something went wrong while running this command: ${message}`,
-        ephemeral: true,
-      });
+      await interaction.reply({ content, ephemeral: true });
     }
   };
 
@@ -300,5 +314,27 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
     );
   });
 
-  return { client, player };
+  const shutdown = async (reason: string): Promise<void> => {
+    logger.info(`Shutting down after ${reason}. Saving active queue state.`);
+
+    for (const queue of player.nodes.cache.values()) {
+      const settings = musicSettings.getSettings(queue.guild.id);
+      const snapshot = createQueueSnapshot(queue);
+
+      if (
+        snapshot &&
+        (settings.twentyFourSevenEnabled ||
+          snapshot.currentTrack ||
+          snapshot.upcomingTracks.length > 0)
+      ) {
+        await queueState.save(snapshot);
+      } else {
+        await queueState.clear(queue.guild.id);
+      }
+    }
+
+    client.destroy();
+  };
+
+  return { client, player, shutdown };
 };

@@ -21,8 +21,14 @@ export interface GuildMusicSettings {
 
 export interface MusicSettingsService {
   getSettings(guildId: string): GuildMusicSettings;
-  setDefaultVolume(guildId: string, volume: number): Promise<GuildMusicSettings>;
-  setDjRole(guildId: string, roleId: string | null): Promise<GuildMusicSettings>;
+  setDefaultVolume(
+    guildId: string,
+    volume: number,
+  ): Promise<GuildMusicSettings>;
+  setDjRole(
+    guildId: string,
+    roleId: string | null,
+  ): Promise<GuildMusicSettings>;
   setTextChannel(
     guildId: string,
     channelId: string | null,
@@ -121,9 +127,7 @@ class JsonMusicSettingsService implements MusicSettingsService {
       );
     } catch (error) {
       const isMissingFile =
-        error instanceof Error &&
-        'code' in error &&
-        error.code === 'ENOENT';
+        error instanceof Error && 'code' in error && error.code === 'ENOENT';
 
       if (!isMissingFile) {
         throw error;

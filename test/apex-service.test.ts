@@ -244,7 +244,9 @@ describe('createApexService', () => {
       (error: unknown) =>
         error instanceof ApexError &&
         error.code === 'invalid_target' &&
-        error.message.includes('provide `platform` with either `username` or `uid`'),
+        error.message.includes(
+          'provide `platform` with either `username` or `uid`',
+        ),
     );
   });
 
@@ -325,7 +327,10 @@ describe('createApexService', () => {
     assert.doesNotMatch(flattened, /BR Season 6 Kills/);
     assert.doesNotMatch(flattened, /Wins: \*\*4\*\*/);
     assert.doesNotMatch(flattened, /BR Season 6 Wins/);
-    assert.match(result.fields.at(-1)?.value ?? '', /reliable account snapshot/i);
+    assert.match(
+      result.fields.at(-1)?.value ?? '',
+      /reliable account snapshot/i,
+    );
   });
 
   it('shows current-season trackers when generic totals are not available', async () => {

@@ -63,7 +63,9 @@ const applyImportModeOption = (
     .setName('mode')
     .setDescription('How to handle tracks already in the playlist')
     .setRequired(false)
-    .addChoices(...PLAYLIST_IMPORT_MODE_CHOICES.map((choice) => ({ ...choice })));
+    .addChoices(
+      ...PLAYLIST_IMPORT_MODE_CHOICES.map((choice) => ({ ...choice })),
+    );
 
 const describeImportMode = (mode: PlaylistImportMode): string => {
   switch (mode) {
@@ -80,8 +82,9 @@ const describeImportMode = (mode: PlaylistImportMode): string => {
 const getPlaylistImportMode = (
   context: Parameters<CommandModule['execute']>[0],
 ): PlaylistImportMode =>
-  (context.interaction.options.getString('mode') as PlaylistImportMode | null) ??
-  'append';
+  (context.interaction.options.getString(
+    'mode',
+  ) as PlaylistImportMode | null) ?? 'append';
 
 const buildImportDescription = (options: {
   importedPlaylistName: string;
@@ -128,7 +131,11 @@ const ensurePlaylistForImport = async (
     return { playlist: existingPlaylist, created: false };
   }
 
-  const playlist = await context.musicLibrary.createPlaylist(guildId, name, userId);
+  const playlist = await context.musicLibrary.createPlaylist(
+    guildId,
+    name,
+    userId,
+  );
   return { playlist, created: true };
 };
 
@@ -157,8 +164,13 @@ const handleFavorites = async (
         return;
       }
 
-      await context.musicLibrary.addFavorite(userId, createSavedTrack(track, userId));
-      await context.replySuccess(`Saved ${formatTrackLine(track)} to your favorites.`);
+      await context.musicLibrary.addFavorite(
+        userId,
+        createSavedTrack(track, userId),
+      );
+      await context.replySuccess(
+        `Saved ${formatTrackLine(track)} to your favorites.`,
+      );
       return;
     }
     case 'add': {
@@ -178,7 +190,10 @@ const handleFavorites = async (
       }
 
       const track = result.tracks[0];
-      await context.musicLibrary.addFavorite(userId, createSavedTrack(track, userId));
+      await context.musicLibrary.addFavorite(
+        userId,
+        createSavedTrack(track, userId),
+      );
       await context.editReply({
         title: 'Favorite Saved',
         description: `Saved [${track.title}](${track.url}) • \`${track.duration}\` to your favorites.`,
@@ -215,7 +230,9 @@ const handleFavorites = async (
     }
     case 'play': {
       await context.deferReply();
-      const position = Number(context.interaction.options.getString('favorite', true));
+      const position = Number(
+        context.interaction.options.getString('favorite', true),
+      );
       const favorite = context.musicLibrary.listFavorites(userId)[position - 1];
 
       if (!favorite) {
@@ -239,8 +256,13 @@ const handleFavorites = async (
       return;
     }
     case 'remove': {
-      const position = Number(context.interaction.options.getString('favorite', true));
-      const removed = await context.musicLibrary.removeFavorite(userId, position);
+      const position = Number(
+        context.interaction.options.getString('favorite', true),
+      );
+      const removed = await context.musicLibrary.removeFavorite(
+        userId,
+        position,
+      );
 
       if (!removed) {
         await context.replyError(
@@ -249,7 +271,9 @@ const handleFavorites = async (
         return;
       }
 
-      await context.replySuccess(`Removed **${removed.title}** from your favorites.`);
+      await context.replySuccess(
+        `Removed **${removed.title}** from your favorites.`,
+      );
       return;
     }
     case 'clear':
@@ -281,7 +305,11 @@ const handlePlaylists = async (
       }
 
       const name = context.interaction.options.getString('name', true);
-      const playlist = await context.musicLibrary.createPlaylist(guildId, name, userId);
+      const playlist = await context.musicLibrary.createPlaylist(
+        guildId,
+        name,
+        userId,
+      );
 
       await context.replySuccess(`Created playlist **${playlist.name}**.`);
       return;
@@ -290,7 +318,9 @@ const handlePlaylists = async (
       const playlists = context.musicLibrary.listPlaylists(guildId);
 
       if (playlists.length === 0) {
-        await context.replyError('This server does not have any playlists yet.');
+        await context.replyError(
+          'This server does not have any playlists yet.',
+        );
         return;
       }
 
@@ -469,7 +499,9 @@ const handlePlaylists = async (
         return;
       }
 
-      await context.replySuccess(`Cleared all tracks from **${playlist.name}**.`);
+      await context.replySuccess(
+        `Cleared all tracks from **${playlist.name}**.`,
+      );
       return;
     }
     case 'import-queue': {
@@ -489,7 +521,9 @@ const handlePlaylists = async (
       ];
 
       if (tracks.length === 0) {
-        await context.replyError('There are no tracks in the current session to import.');
+        await context.replyError(
+          'There are no tracks in the current session to import.',
+        );
         return;
       }
 
@@ -548,10 +582,15 @@ const handlePlaylists = async (
             : null;
 
         if (subcommand === 'import-youtube') {
-          if (!importedPlaylist || importedPlaylist.isEmpty() || !importedPlaylist.playlist) {
+          if (
+            !importedPlaylist ||
+            importedPlaylist.isEmpty() ||
+            !importedPlaylist.playlist
+          ) {
             await context.editReply({
               title: 'Playlist Not Found',
-              description: 'I could not resolve a YouTube playlist from that URL.',
+              description:
+                'I could not resolve a YouTube playlist from that URL.',
             });
             return;
           }
@@ -559,7 +598,9 @@ const handlePlaylists = async (
           const result = await context.musicLibrary.importPlaylistTracks(
             guildId,
             playlist.name,
-            importedPlaylist.tracks.map((track) => createSavedTrack(track, userId)),
+            importedPlaylist.tracks.map((track) =>
+              createSavedTrack(track, userId),
+            ),
             mode,
           );
 
@@ -597,7 +638,9 @@ const handlePlaylists = async (
         const result = await context.musicLibrary.importPlaylistTracks(
           guildId,
           playlist.name,
-          resolvedPlaylist.resolvedTracks.map((track) => createSavedTrack(track, userId)),
+          resolvedPlaylist.resolvedTracks.map((track) =>
+            createSavedTrack(track, userId),
+          ),
           mode,
         );
 
@@ -662,12 +705,16 @@ export const libraryCommand: CommandModule = {
         .addSubcommand((subcommand) =>
           subcommand
             .setName('add-current')
-            .setDescription('Save the currently playing track to your favorites.'),
+            .setDescription(
+              'Save the currently playing track to your favorites.',
+            ),
         )
         .addSubcommand((subcommand) =>
           subcommand
             .setName('add')
-            .setDescription('Search YouTube and save the first result to your favorites.')
+            .setDescription(
+              'Search YouTube and save the first result to your favorites.',
+            )
             .addStringOption((option) =>
               option
                 .setName('query')
@@ -676,7 +723,9 @@ export const libraryCommand: CommandModule = {
             ),
         )
         .addSubcommand((subcommand) =>
-          subcommand.setName('list').setDescription('List your saved favorites.'),
+          subcommand
+            .setName('list')
+            .setDescription('List your saved favorites.'),
         )
         .addSubcommand((subcommand) =>
           subcommand
@@ -703,7 +752,9 @@ export const libraryCommand: CommandModule = {
             ),
         )
         .addSubcommand((subcommand) =>
-          subcommand.setName('clear').setDescription('Clear all of your favorites.'),
+          subcommand
+            .setName('clear')
+            .setDescription('Clear all of your favorites.'),
         ),
     )
     .addSubcommandGroup((group) =>
@@ -746,7 +797,9 @@ export const libraryCommand: CommandModule = {
         .addSubcommand((subcommand) =>
           subcommand
             .setName('add')
-            .setDescription('Search YouTube and add the first result to a playlist.')
+            .setDescription(
+              'Search YouTube and add the first result to a playlist.',
+            )
             .addStringOption((option) => applyPlaylistNameOption(option))
             .addStringOption((option) =>
               option
@@ -783,7 +836,9 @@ export const libraryCommand: CommandModule = {
         .addSubcommand((subcommand) =>
           subcommand
             .setName('import-youtube')
-            .setDescription('Import a YouTube playlist URL into a server playlist.')
+            .setDescription(
+              'Import a YouTube playlist URL into a server playlist.',
+            )
             .addStringOption((option) => applyPlaylistImportNameOption(option))
             .addStringOption((option) =>
               option
@@ -796,7 +851,9 @@ export const libraryCommand: CommandModule = {
         .addSubcommand((subcommand) =>
           subcommand
             .setName('import-spotify')
-            .setDescription('Import a Spotify playlist URL into a server playlist.')
+            .setDescription(
+              'Import a Spotify playlist URL into a server playlist.',
+            )
             .addStringOption((option) => applyPlaylistImportNameOption(option))
             .addStringOption((option) =>
               option
@@ -830,14 +887,18 @@ export const libraryCommand: CommandModule = {
     const focused = context.interaction.options.getFocused(true);
 
     if (group === 'favorites' && focused.name === 'favorite') {
-      const favorites = context.musicLibrary.listFavorites(context.interaction.user.id);
+      const favorites = context.musicLibrary.listFavorites(
+        context.interaction.user.id,
+      );
       const filtered = favorites
         .map((track, index) => ({
           name: `${index + 1}. ${track.title}`.slice(0, 100),
           value: String(index + 1),
         }))
         .filter((choice) =>
-          choice.name.toLowerCase().includes(String(focused.value).toLowerCase()),
+          choice.name
+            .toLowerCase()
+            .includes(String(focused.value).toLowerCase()),
         )
         .slice(0, 25);
 
@@ -852,10 +913,14 @@ export const libraryCommand: CommandModule = {
       subcommand !== 'import-youtube' &&
       subcommand !== 'import-spotify'
     ) {
-      const playlists = context.musicLibrary.listPlaylists(context.interaction.guildId);
+      const playlists = context.musicLibrary.listPlaylists(
+        context.interaction.guildId,
+      );
       const filtered = playlists
         .filter((playlist) =>
-          playlist.name.toLowerCase().includes(String(focused.value).toLowerCase()),
+          playlist.name
+            .toLowerCase()
+            .includes(String(focused.value).toLowerCase()),
         )
         .slice(0, 25)
         .map((playlist) => ({

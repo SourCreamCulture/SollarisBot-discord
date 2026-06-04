@@ -1,4 +1,8 @@
-import { buildLegendCard, buildOverviewCard, resolveProfileDisplayName } from './mapper';
+import {
+  buildLegendCard,
+  buildOverviewCard,
+  resolveProfileDisplayName,
+} from './mapper';
 import { assertSupportedApexPlatform, toProviderPlatform } from './platform';
 import {
   ApexError,
@@ -57,7 +61,9 @@ class DefaultApexService implements ApexService {
     uid?: string;
   }): Promise<ApexLinkedAccount> {
     const appPlatform = assertSupportedApexPlatform(input.appPlatform);
-    const username = input.username ? sanitizeUsername(input.username) : undefined;
+    const username = input.username
+      ? sanitizeUsername(input.username)
+      : undefined;
     const uid = input.uid ? sanitizeUsername(input.uid) : undefined;
 
     if (!username && !uid) {
@@ -81,7 +87,10 @@ class DefaultApexService implements ApexService {
     });
     const now = new Date().toISOString();
     const existing = this.store.getLink(input.discordUserId);
-    const displayName = resolveProfileDisplayName(profile, username ?? uid ?? 'Unknown');
+    const displayName = resolveProfileDisplayName(
+      profile,
+      username ?? uid ?? 'Unknown',
+    );
     const link: ApexLinkedAccount = {
       discordUserId: input.discordUserId,
       appPlatform,
@@ -111,9 +120,13 @@ class DefaultApexService implements ApexService {
     return this.getOverviewForTarget(target);
   }
 
-  async getOverviewForLookup(input: ApexLookupInput): Promise<ApexOverviewCard> {
+  async getOverviewForLookup(
+    input: ApexLookupInput,
+  ): Promise<ApexOverviewCard> {
     const appPlatform = assertSupportedApexPlatform(input.appPlatform);
-    const username = input.username ? sanitizeUsername(input.username) : undefined;
+    const username = input.username
+      ? sanitizeUsername(input.username)
+      : undefined;
     const uid = input.uid ? sanitizeUsername(input.uid) : undefined;
 
     if (!username && !uid) {
@@ -218,7 +231,9 @@ class DefaultApexService implements ApexService {
     }
 
     if (hasManualPlatform && (hasManualUsername || hasManualUid)) {
-      const appPlatform = assertSupportedApexPlatform(input.appPlatform ?? 'pc');
+      const appPlatform = assertSupportedApexPlatform(
+        input.appPlatform ?? 'pc',
+      );
       const username = sanitizeUsername(input.username ?? '');
       const uid = sanitizeUsername(input.uid ?? '');
 

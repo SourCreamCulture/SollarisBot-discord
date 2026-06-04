@@ -1,4 +1,5 @@
-const unitPattern = /(\d+)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)/gi;
+const unitPattern =
+  /(\d+)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)/gi;
 
 export const parseSeekTime = (input: string): number | null => {
   const value = input.trim().toLowerCase();

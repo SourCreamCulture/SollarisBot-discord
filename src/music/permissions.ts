@@ -7,7 +7,9 @@ export const requireDjOrOpenControl = async (
   context: CommandContext,
   action: string,
 ): Promise<boolean> => {
-  const settings = context.musicSettings.getSettings(context.interaction.guildId);
+  const settings = context.musicSettings.getSettings(
+    context.interaction.guildId,
+  );
 
   if (!settings.djRoleId) {
     return true;
@@ -31,7 +33,9 @@ export const requireDjOrOpenControl = async (
 export const ensureMusicTextChannel = async (
   context: CommandContext,
 ): Promise<boolean> => {
-  const settings = context.musicSettings.getSettings(context.interaction.guildId);
+  const settings = context.musicSettings.getSettings(
+    context.interaction.guildId,
+  );
 
   if (
     !settings.textChannelId ||

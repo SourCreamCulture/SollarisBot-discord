@@ -46,7 +46,10 @@ describe('music spotify helpers', () => {
       createSavedTrack('https://open.spotify.com/track/1234567890123456789012'),
     );
 
-    assert.equal(playbackRequest.searchEngine, config.music.youtubeSearchEngine);
+    assert.equal(
+      playbackRequest.searchEngine,
+      config.music.youtubeSearchEngine,
+    );
     assert.match(playbackRequest.query, /ellie goulding lights/i);
   });
 
@@ -56,19 +59,20 @@ describe('music spotify helpers', () => {
       createSavedTrack('https://www.youtube.com/watch?v=abc123'),
     );
 
-    assert.equal(playbackRequest.query, 'https://www.youtube.com/watch?v=abc123');
+    assert.equal(
+      playbackRequest.query,
+      'https://www.youtube.com/watch?v=abc123',
+    );
     assert.equal(playbackRequest.searchEngine, QueryType.AUTO);
   });
 
   it('resolves Spotify playlist songs to YouTube tracks and reports misses', async () => {
-    const spotifyPlaylistUrl = 'https://open.spotify.com/playlist/1234567890123456789012';
+    const spotifyPlaylistUrl =
+      'https://open.spotify.com/playlist/1234567890123456789012';
     const searchCalls: Array<{ query: string; searchEngine: string }> = [];
 
     const player = {
-      search: async (
-        query: string,
-        options: { searchEngine: string },
-      ) => {
+      search: async (query: string, options: { searchEngine: string }) => {
         searchCalls.push({
           query,
           searchEngine: options.searchEngine,

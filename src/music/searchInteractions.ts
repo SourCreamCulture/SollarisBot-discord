@@ -80,7 +80,10 @@ export const handleMusicSearchSelect = async (
   const member = interaction.member;
 
   if (!(member instanceof Object) || !('voice' in member)) {
-    await replyError(interaction, 'I could not resolve your server member data.');
+    await replyError(
+      interaction,
+      'I could not resolve your server member data.',
+    );
     return true;
   }
 
@@ -97,7 +100,10 @@ export const handleMusicSearchSelect = async (
   }
 
   if (!textChannel) {
-    await replyError(interaction, 'I can only manage music from a server text channel.');
+    await replyError(
+      interaction,
+      'I can only manage music from a server text channel.',
+    );
     return true;
   }
 

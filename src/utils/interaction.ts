@@ -16,7 +16,12 @@ import type { MusicLibraryService } from '../music/library';
 import type { QueueStateService } from '../music/queueState';
 import type { MusicSettingsService } from '../music/settings';
 import type { VoteSkipManager } from '../music/voteSkip';
-import { createErrorReply, createInfoReply, createStatusEmbed, createSuccessReply } from './embeds';
+import {
+  createErrorReply,
+  createInfoReply,
+  createStatusEmbed,
+  createSuccessReply,
+} from './embeds';
 
 type RepliableInteraction =
   | ChatInputCommandInteraction<'cached'>
@@ -66,7 +71,10 @@ export const createCommandContext = (
     }
   },
   replyError: async (message: string) =>
-    sendResponse(interaction, createErrorReply('Something went wrong', message)),
+    sendResponse(
+      interaction,
+      createErrorReply('Something went wrong', message),
+    ),
   replyInfo: async (message: string) =>
     sendResponse(interaction, createInfoReply('Music Update', message)),
   replySuccess: async (message: string) =>

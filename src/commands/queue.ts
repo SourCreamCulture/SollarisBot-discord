@@ -1,6 +1,6 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 
-import type { CommandModule } from '../types/bot';
+import type { CommandModule, GuildMusicSession } from '../types/bot';
 import {
   requireControllableSession,
   syncQueueTextChannel,
@@ -16,6 +16,16 @@ const requireQueueEditor = async (
   context: Parameters<CommandModule['execute']>[0],
 ) => requireDjOrOpenControl(context, 'manage the queue');
 
+const saveQueueState = async (
+  context: Parameters<CommandModule['execute']>[0],
+  queue: GuildMusicSession,
+) => {
+  const snapshot = createQueueSnapshot(queue);
+  if (snapshot) {
+    await context.queueState.save(snapshot);
+  }
+};
+
 export const queueCommand: CommandModule = {
   data: new SlashCommandBuilder()
     .setName('queue')
@@ -27,7 +37,9 @@ export const queueCommand: CommandModule = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName('clear')
-        .setDescription('Clear all upcoming tracks without stopping the current song.'),
+        .setDescription(
+          'Clear all upcoming tracks without stopping the current song.',
+        ),
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -158,7 +170,9 @@ export const queueCommand: CommandModule = {
           await context.queueState.save(snapshot);
         }
         syncQueueTextChannel(context.interaction, queue);
-        await context.replySuccess(`Cleared **${clearedCount}** upcoming track(s).`);
+        await context.replySuccess(
+          `Cleared **${clearedCount}** upcoming track(s).`,
+        );
         return;
       }
       case 'move': {
@@ -173,7 +187,9 @@ export const queueCommand: CommandModule = {
         const track = queue.tracks.at(fromIndex);
 
         if (!track) {
-          await context.replyError(`There is no queued track at position **${from}**.`);
+          await context.replyError(
+            `There is no queued track at position **${from}**.`,
+          );
           return;
         }
 
@@ -185,6 +201,7 @@ export const queueCommand: CommandModule = {
         }
 
         queue.node.move(fromIndex, toIndex);
+        await saveQueueState(context, queue);
         syncQueueTextChannel(context.interaction, queue);
         await context.replySuccess(
           `Moved ${formatTrackLine(track)} to position **${to}**.`,
@@ -196,7 +213,10 @@ export const queueCommand: CommandModule = {
           return;
         }
 
-        const position = context.interaction.options.getInteger('position', true);
+        const position = context.interaction.options.getInteger(
+          'position',
+          true,
+        );
         const targetIndex = position - 1;
         const targetTrack = queue.tracks.at(targetIndex);
 
@@ -208,8 +228,11 @@ export const queueCommand: CommandModule = {
         }
 
         queue.node.remove(targetIndex);
+        await saveQueueState(context, queue);
         syncQueueTextChannel(context.interaction, queue);
-        await context.replySuccess(`Removed **${targetTrack.title}** from the queue.`);
+        await context.replySuccess(
+          `Removed **${targetTrack.title}** from the queue.`,
+        );
         return;
       }
       case 'shuffle': {
@@ -218,11 +241,14 @@ export const queueCommand: CommandModule = {
         }
 
         if (queue.size < 2) {
-          await context.replyError('You need at least two queued tracks to shuffle.');
+          await context.replyError(
+            'You need at least two queued tracks to shuffle.',
+          );
           return;
         }
 
         queue.enableShuffle(false);
+        await saveQueueState(context, queue);
         syncQueueTextChannel(context.interaction, queue);
         await context.replySuccess('Shuffled the upcoming tracks.');
         return;
@@ -232,7 +258,10 @@ export const queueCommand: CommandModule = {
           return;
         }
 
-        const position = context.interaction.options.getInteger('position', true);
+        const position = context.interaction.options.getInteger(
+          'position',
+          true,
+        );
         const targetIndex = position - 1;
         const targetTrack = queue.tracks.at(targetIndex);
 
@@ -250,16 +279,22 @@ export const queueCommand: CommandModule = {
           return;
         }
 
+        await saveQueueState(context, queue);
         syncQueueTextChannel(context.interaction, queue);
         await context.replySuccess(`Skipped to **${targetTrack.title}**.`);
         return;
       }
       case 'history':
       default: {
-        const tracks = queue.history.tracks.toArray().slice(-HISTORY_LIMIT).reverse();
+        const tracks = queue.history.tracks
+          .toArray()
+          .slice(-HISTORY_LIMIT)
+          .reverse();
 
         if (tracks.length === 0) {
-          await context.replyError('No tracks have been played in this session yet.');
+          await context.replyError(
+            'No tracks have been played in this session yet.',
+          );
           return;
         }
 
@@ -269,7 +304,9 @@ export const queueCommand: CommandModule = {
           .setColor(0x4f9eed)
           .setTitle('Recently Played')
           .setDescription(
-            tracks.map((track, index) => formatTrackLine(track, index + 1)).join('\n'),
+            tracks
+              .map((track, index) => formatTrackLine(track, index + 1))
+              .join('\n'),
           )
           .setTimestamp();
 

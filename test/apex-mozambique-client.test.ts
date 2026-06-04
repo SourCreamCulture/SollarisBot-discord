@@ -79,7 +79,10 @@ describe('createMozambiqueApexApiClient', () => {
     assert.equal(profile.platformInfo.platformUserIdentifier, '1001');
     assert.equal(profile.metadata.activeLegendName, 'Wraith');
     assert.equal(profile.segments[0]?.stats?.level?.value, 321);
-    assert.equal(profile.segments[0]?.stats?.rankScore?.metadata?.rankName, 'Diamond');
+    assert.equal(
+      profile.segments[0]?.stats?.rankScore?.metadata?.rankName,
+      'Diamond',
+    );
     assert.equal(profile.segments[1]?.metadata?.name, 'Wraith');
     assert.equal(profile.segments[1]?.stats?.kills?.value, 2100);
 

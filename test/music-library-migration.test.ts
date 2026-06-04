@@ -6,7 +6,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 
-import { createJsonMusicLibraryService, type SavedTrack } from '../src/music/library';
+import {
+  createJsonMusicLibraryService,
+  type SavedTrack,
+} from '../src/music/library';
 import {
   migrateSavedSpotifyTracks,
   migrateSavedSpotifyTracksToYoutube,
@@ -26,7 +29,9 @@ const logger: Logger = {
 const tempDirectories: string[] = [];
 
 const createTempStorePath = async (): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), 'sollaris-music-library-migration-'));
+  const directory = await mkdtemp(
+    join(tmpdir(), 'sollaris-music-library-migration-'),
+  );
   tempDirectories.push(directory);
   return join(directory, 'data', 'music-library.json');
 };
@@ -68,9 +73,9 @@ const requestedBy = { id: 'spotify-library-migration' } as User;
 
 afterEach(async () => {
   await Promise.all(
-    tempDirectories.splice(0).map((directory) =>
-      rm(directory, { recursive: true, force: true }),
-    ),
+    tempDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
 
@@ -169,7 +174,10 @@ describe('migrateSavedSpotifyTracks', () => {
     const favorites = library.listFavorites('user-1');
     assert.equal(favorites[0]?.url, untouchedFavorite.url);
     assert.equal(favorites[0]?.title, untouchedFavorite.title);
-    assert.equal(favorites[1]?.url, 'https://www.youtube.com/watch?v=favorite-converted');
+    assert.equal(
+      favorites[1]?.url,
+      'https://www.youtube.com/watch?v=favorite-converted',
+    );
     assert.equal(favorites[1]?.title, spotifyFavorite.title);
     assert.equal(favorites[1]?.duration, spotifyFavorite.duration);
     assert.equal(favorites[1]?.author, spotifyFavorite.author);
@@ -278,15 +286,16 @@ describe('migrateSavedSpotifyTracks', () => {
     };
 
     await mkdir(dirname(filePath), { recursive: true });
-    await writeFile(filePath, `${JSON.stringify(rawLibrary, null, 2)}\n`, 'utf8');
+    await writeFile(
+      filePath,
+      `${JSON.stringify(rawLibrary, null, 2)}\n`,
+      'utf8',
+    );
 
     const library = await createJsonMusicLibraryService(filePath, logger);
     const searchCalls: Array<{ query: string; searchEngine: string }> = [];
     const player = {
-      search: async (
-        query: string,
-        options: { searchEngine: string },
-      ) => {
+      search: async (query: string, options: { searchEngine: string }) => {
         searchCalls.push({
           query,
           searchEngine: options.searchEngine,
@@ -337,19 +346,16 @@ describe('migrateSavedSpotifyTracks', () => {
     assert.equal(result.updatedTrackCount, 3);
     assert.equal(result.unresolvedTrackCount, 0);
 
-    assert.deepEqual(
-      searchCalls,
-      [
-        {
-          query: 'Artist One Ghost Town audio',
-          searchEngine: 'ext:test-youtube',
-        },
-        {
-          query: 'Artist Three Late Night audio',
-          searchEngine: 'ext:test-youtube',
-        },
-      ],
-    );
+    assert.deepEqual(searchCalls, [
+      {
+        query: 'Artist One Ghost Town audio',
+        searchEngine: 'ext:test-youtube',
+      },
+      {
+        query: 'Artist Three Late Night audio',
+        searchEngine: 'ext:test-youtube',
+      },
+    ]);
 
     const dallin = library.getPlaylist('guild-1', 'dallin');
     const juice = library.getPlaylist('guild-1', 'juice');
@@ -374,14 +380,20 @@ describe('migrateSavedSpotifyTracks', () => {
 
     assert.deepEqual(
       dallin.tracks.map((track) => track.addedAt),
-      rawLibrary.guilds['guild-1'].playlists.dallin.tracks.map((track) => track.addedAt),
+      rawLibrary.guilds['guild-1'].playlists.dallin.tracks.map(
+        (track) => track.addedAt,
+      ),
     );
     assert.deepEqual(
       juice.tracks.map((track) => track.addedById),
-      rawLibrary.guilds['guild-1'].playlists.juice.tracks.map((track) => track.addedById),
+      rawLibrary.guilds['guild-1'].playlists.juice.tracks.map(
+        (track) => track.addedById,
+      ),
     );
 
-    const storedFile = JSON.parse(await readFile(filePath, 'utf8')) as typeof rawLibrary;
+    const storedFile = JSON.parse(
+      await readFile(filePath, 'utf8'),
+    ) as typeof rawLibrary;
     assert.equal(
       storedFile.guilds['guild-1'].playlists.dallin.updatedAt,
       rawLibrary.guilds['guild-1'].playlists.dallin.updatedAt,
