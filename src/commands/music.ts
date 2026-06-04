@@ -21,9 +21,13 @@ export const musicCommand: CommandModule = {
     .addSubcommandGroup((group) =>
       group
         .setName('settings')
-        .setDescription('View and manage persistent music settings for this server.')
+        .setDescription(
+          'View and manage persistent music settings for this server.',
+        )
         .addSubcommand((subcommand) =>
-          subcommand.setName('view').setDescription('Show current music settings.'),
+          subcommand
+            .setName('view')
+            .setDescription('Show current music settings.'),
         )
         .addSubcommand((subcommand) =>
           subcommand
@@ -52,7 +56,9 @@ export const musicCommand: CommandModule = {
         .addSubcommand((subcommand) =>
           subcommand
             .setName('clear-dj-role')
-            .setDescription('Allow everyone in voice to use playback controls.'),
+            .setDescription(
+              'Allow everyone in voice to use playback controls.',
+            ),
         )
         .addSubcommand((subcommand) =>
           subcommand
@@ -120,7 +126,10 @@ export const musicCommand: CommandModule = {
     switch (subcommand) {
       case 'default-volume': {
         const volume = context.interaction.options.getInteger('percent', true);
-        const settings = await context.musicSettings.setDefaultVolume(guildId, volume);
+        const settings = await context.musicSettings.setDefaultVolume(
+          guildId,
+          volume,
+        );
         await context.replySuccess(
           `Default music volume is now **${settings.defaultVolume}%**.`,
         );
@@ -149,7 +158,9 @@ export const musicCommand: CommandModule = {
       }
       case 'unbind-channel': {
         await context.musicSettings.setTextChannel(guildId, null);
-        await context.replySuccess('Music commands can now be used in any text channel.');
+        await context.replySuccess(
+          'Music commands can now be used in any text channel.',
+        );
         return;
       }
       case 'voteskip': {
@@ -172,7 +183,11 @@ export const musicCommand: CommandModule = {
           applyMusicSettingsToQueue(queue, context.config, settings);
           const snapshot = createQueueSnapshot(queue);
           if (snapshot) {
-            if (enabled || snapshot.currentTrack || snapshot.upcomingTracks.length > 0) {
+            if (
+              enabled ||
+              snapshot.currentTrack ||
+              snapshot.upcomingTracks.length > 0
+            ) {
               await context.queueState.save(snapshot);
             } else {
               await context.queueState.clear(guildId);
@@ -234,7 +249,9 @@ export const musicCommand: CommandModule = {
             },
             {
               name: '24/7 Mode',
-              value: settings.twentyFourSevenEnabled ? '`Enabled`' : '`Disabled`',
+              value: settings.twentyFourSevenEnabled
+                ? '`Enabled`'
+                : '`Disabled`',
               inline: true,
             },
           )

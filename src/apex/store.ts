@@ -4,11 +4,7 @@ import { dirname } from 'node:path';
 import { z } from 'zod';
 
 import type { Logger } from '../utils/logger';
-import {
-  ApexError,
-  type ApexLinkedAccount,
-  type ApexLinkStore,
-} from './types';
+import { ApexError, type ApexLinkedAccount, type ApexLinkStore } from './types';
 
 const linkSchema = z.object({
   discordUserId: z.string().min(1),
@@ -94,9 +90,7 @@ class JsonApexLinkStore implements ApexLinkStore {
       );
     } catch (error) {
       const isMissingFile =
-        error instanceof Error &&
-        'code' in error &&
-        error.code === 'ENOENT';
+        error instanceof Error && 'code' in error && error.code === 'ENOENT';
 
       if (!isMissingFile) {
         throw error;

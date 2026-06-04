@@ -32,7 +32,10 @@ const queueNow = async (
     return;
   }
 
-  const existingQueue = getGuildSession(context.player, context.interaction.guildId);
+  const existingQueue = getGuildSession(
+    context.player,
+    context.interaction.guildId,
+  );
 
   if (existingQueue) {
     const canControl = await ensureSameVoiceChannel(
@@ -47,7 +50,9 @@ const queueNow = async (
   }
 
   const member = await resolveMember(context.interaction);
-  const settings = context.musicSettings.getSettings(context.interaction.guildId);
+  const settings = context.musicSettings.getSettings(
+    context.interaction.guildId,
+  );
 
   try {
     if (isSpotifyPlaylistQuery(query)) {
@@ -67,7 +72,10 @@ const queueNow = async (
         return;
       }
 
-      const queued = await queueResolvedTracks(context, resolvedPlaylist.resolvedTracks);
+      const queued = await queueResolvedTracks(
+        context,
+        resolvedPlaylist.resolvedTracks,
+      );
 
       if (!queued) {
         return;
@@ -141,7 +149,9 @@ const queueNext = async (
 
   const member = await resolveMember(context.interaction);
   const queue = getGuildSession(context.player, context.interaction.guildId);
-  const settings = context.musicSettings.getSettings(context.interaction.guildId);
+  const settings = context.musicSettings.getSettings(
+    context.interaction.guildId,
+  );
 
   if (!queue || !queue.currentTrack) {
     const result = await playTrack(context.player, context.config, {
@@ -247,7 +257,9 @@ export const playCommand: CommandModule = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName('next')
-        .setDescription('Queue a song or playlist right after the current track.')
+        .setDescription(
+          'Queue a song or playlist right after the current track.',
+        )
         .addStringOption((option) =>
           option
             .setName('query')

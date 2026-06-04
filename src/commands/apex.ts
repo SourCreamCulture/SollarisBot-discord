@@ -163,7 +163,7 @@ export const apexCommand: CommandModule = {
           option
             .setName('user')
             .setDescription(
-              "A linked Discord member to use instead of your own linked account.",
+              'A linked Discord member to use instead of your own linked account.',
             )
             .setRequired(false),
         )
@@ -195,8 +195,12 @@ export const apexCommand: CommandModule = {
       switch (subcommand) {
         case 'link': {
           await context.deferReply({ ephemeral: true });
-          const platform = context.interaction.options.getString('platform', true);
-          const username = context.interaction.options.getString('username') ?? undefined;
+          const platform = context.interaction.options.getString(
+            'platform',
+            true,
+          );
+          const username =
+            context.interaction.options.getString('username') ?? undefined;
           const uid = context.interaction.options.getString('uid') ?? undefined;
           const linked = await context.apex.linkAccount({
             discordUserId: context.interaction.user.id,
@@ -222,7 +226,9 @@ export const apexCommand: CommandModule = {
         }
         case 'unlink': {
           await context.deferReply({ ephemeral: true });
-          const removed = await context.apex.unlinkAccount(context.interaction.user.id);
+          const removed = await context.apex.unlinkAccount(
+            context.interaction.user.id,
+          );
           const description = removed
             ? 'Your saved Apex account link has been removed.'
             : 'You did not have a linked Apex account to remove.';
@@ -240,7 +246,9 @@ export const apexCommand: CommandModule = {
         }
         case 'me': {
           await context.deferReply();
-          const card = await context.apex.getOverviewForSelf(context.interaction.user.id);
+          const card = await context.apex.getOverviewForSelf(
+            context.interaction.user.id,
+          );
           await context.interaction.editReply({
             embeds: [buildStatsEmbed(card)],
           });
@@ -262,8 +270,12 @@ export const apexCommand: CommandModule = {
         }
         case 'lookup': {
           await context.deferReply();
-          const platform = context.interaction.options.getString('platform', true);
-          const username = context.interaction.options.getString('username') ?? undefined;
+          const platform = context.interaction.options.getString(
+            'platform',
+            true,
+          );
+          const username =
+            context.interaction.options.getString('username') ?? undefined;
           const uid = context.interaction.options.getString('uid') ?? undefined;
           const card = await context.apex.getOverviewForLookup({
             appPlatform: platform as ApexAppPlatform,
@@ -298,7 +310,10 @@ export const apexCommand: CommandModule = {
           return;
         }
         default:
-          throw new ApexError('invalid_target', `Unsupported Apex subcommand: ${subcommand}`);
+          throw new ApexError(
+            'invalid_target',
+            `Unsupported Apex subcommand: ${subcommand}`,
+          );
       }
     } catch (error) {
       await handleApexError(context, error);

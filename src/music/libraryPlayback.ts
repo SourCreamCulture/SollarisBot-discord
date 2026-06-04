@@ -26,11 +26,16 @@ export const queueSavedTracks = async (
   const textChannel = resolveTextChannel(context.interaction);
 
   if (!voiceChannel || !textChannel) {
-    await context.replyError('I can only manage music from a server text channel.');
+    await context.replyError(
+      'I can only manage music from a server text channel.',
+    );
     return null;
   }
 
-  const existingQueue = getGuildSession(context.player, context.interaction.guildId);
+  const existingQueue = getGuildSession(
+    context.player,
+    context.interaction.guildId,
+  );
 
   if (
     existingQueue &&
@@ -39,12 +44,17 @@ export const queueSavedTracks = async (
     return null;
   }
 
-  const settings = context.musicSettings.getSettings(context.interaction.guildId);
+  const settings = context.musicSettings.getSettings(
+    context.interaction.guildId,
+  );
   const member = await resolveMember(context.interaction);
   let startedPlayback = false;
 
   for (const [index, track] of tracks.entries()) {
-    const playbackRequest = buildSavedTrackPlaybackRequest(context.config, track);
+    const playbackRequest = buildSavedTrackPlaybackRequest(
+      context.config,
+      track,
+    );
     const result = await playTrack(context.player, context.config, {
       query: playbackRequest.query,
       member,
@@ -80,11 +90,16 @@ export const queueResolvedTracks = async (
   const textChannel = resolveTextChannel(context.interaction);
 
   if (!voiceChannel || !textChannel) {
-    await context.replyError('I can only manage music from a server text channel.');
+    await context.replyError(
+      'I can only manage music from a server text channel.',
+    );
     return null;
   }
 
-  const existingQueue = getGuildSession(context.player, context.interaction.guildId);
+  const existingQueue = getGuildSession(
+    context.player,
+    context.interaction.guildId,
+  );
 
   if (
     existingQueue &&
@@ -93,10 +108,14 @@ export const queueResolvedTracks = async (
     return null;
   }
 
-  const settings = context.musicSettings.getSettings(context.interaction.guildId);
+  const settings = context.musicSettings.getSettings(
+    context.interaction.guildId,
+  );
   const member = await resolveMember(context.interaction);
   const queueIsActive = Boolean(
-    existingQueue?.currentTrack || existingQueue?.size || existingQueue?.isPlaying(),
+    existingQueue?.currentTrack ||
+    existingQueue?.size ||
+    existingQueue?.isPlaying(),
   );
 
   if (!existingQueue || !queueIsActive) {

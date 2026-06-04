@@ -28,9 +28,7 @@ const SUPPORTED_PLATFORMS = new Set<string>(
   APEX_PLATFORM_CHOICES.map((choice) => choice.value),
 );
 
-export const assertSupportedApexPlatform = (
-  value: string,
-): ApexAppPlatform => {
+export const assertSupportedApexPlatform = (value: string): ApexAppPlatform => {
   if (SUPPORTED_PLATFORMS.has(value)) {
     return value as ApexAppPlatform;
   }

@@ -1,4 +1,4 @@
-import type { LogLevel } from "../types/bot";
+import type { LogLevel } from '../types/bot';
 
 const priorities: Record<LogLevel, number> = {
   debug: 10,

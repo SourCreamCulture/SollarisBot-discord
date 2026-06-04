@@ -1,7 +1,5 @@
 import ffmpegPath from 'ffmpeg-static';
-import {
-  DefaultExtractors,
-} from '@discord-player/extractor';
+import { DefaultExtractors } from '@discord-player/extractor';
 import {
   GuildQueueEvent,
   Player,
@@ -10,7 +8,11 @@ import {
   type Track,
 } from 'discord-player';
 import { YoutubeExtractor } from 'discord-player-youtubei';
-import type { Client, GuildTextBasedChannel, VoiceBasedChannel } from 'discord.js';
+import type {
+  Client,
+  GuildTextBasedChannel,
+  VoiceBasedChannel,
+} from 'discord.js';
 
 import type {
   BotConfig,
@@ -21,6 +23,7 @@ import type {
 } from '../types/bot';
 import type { Logger } from '../utils/logger';
 import { createStatusEmbed } from '../utils/embeds';
+import { UserFacingError } from '../utils/errors';
 import type { SavedTrack } from './library';
 import type { GuildMusicSettings } from './settings';
 import { buildSavedTrackPlaybackRequest } from './spotify';
@@ -74,7 +77,10 @@ export const createMusicPlayer = async (
   });
 
   player.events.on(GuildQueueEvent.Error, async (queue, error) => {
-    logger.error(`Queue error in guild ${queue.guild.id}: ${error.message}`, error);
+    logger.error(
+      `Queue error in guild ${queue.guild.id}: ${error.message}`,
+      error,
+    );
     await safelySendToChannel(
       queue.metadata,
       'Queue Error',
@@ -173,7 +179,9 @@ export const updateSessionMetadata = (
 };
 
 const isQueueActive = (queue: GuildMusicSession | null): boolean =>
-  Boolean(queue?.currentTrack) || Boolean(queue?.size) || Boolean(queue?.isPlaying());
+  Boolean(queue?.currentTrack) ||
+  Boolean(queue?.size) ||
+  Boolean(queue?.isPlaying());
 
 export const playTrack = async (
   player: Player,
@@ -246,7 +254,7 @@ export const ensureConnectedSession = async (
   const clientUserId = player.client.user?.id;
 
   if (!clientUserId) {
-    throw new Error('Bot user is not ready yet.');
+    throw new UserFacingError('Bot user is not ready yet.');
   }
 
   const queue =
@@ -291,11 +299,14 @@ export const restoreSavedQueue = async (
   const clientUser = player.client.user;
 
   if (!clientUser) {
-    throw new Error('Bot user is not ready yet.');
+    throw new UserFacingError('Bot user is not ready yet.');
   }
 
   if (state.currentTrack) {
-    const playbackRequest = buildSavedTrackPlaybackRequest(config, state.currentTrack);
+    const playbackRequest = buildSavedTrackPlaybackRequest(
+      config,
+      state.currentTrack,
+    );
     await player.play(voiceChannel, playbackRequest.query, {
       requestedBy: clientUser,
       searchEngine: playbackRequest.searchEngine,
@@ -305,7 +316,13 @@ export const restoreSavedQueue = async (
       }),
     });
   } else if (settings.twentyFourSevenEnabled) {
-    await ensureConnectedSession(player, config, voiceChannel, textChannel, settings);
+    await ensureConnectedSession(
+      player,
+      config,
+      voiceChannel,
+      textChannel,
+      settings,
+    );
   }
 
   const queue = getGuildSession(player, voiceChannel.guild.id);

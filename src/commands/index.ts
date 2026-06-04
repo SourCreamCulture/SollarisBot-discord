@@ -1,5 +1,6 @@
 import type { CommandModule } from '../types/bot';
 import { apexCommand } from './apex';
+import { botCommand } from './bot';
 import { libraryCommand } from './library';
 import { musicCommand } from './music';
 import { playCommand } from './play';
@@ -8,6 +9,7 @@ import { queueCommand } from './queue';
 
 export const commands: CommandModule[] = [
   apexCommand,
+  botCommand,
   playCommand,
   playerCommand,
   queueCommand,

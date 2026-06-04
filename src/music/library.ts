@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { Track } from 'discord-player';
 
 import type { Logger } from '../utils/logger';
+import { UserFacingError } from '../utils/errors';
 
 export const DEFAULT_MUSIC_LIBRARY_FILE = 'data/music-library.json';
 
@@ -150,7 +151,10 @@ const slugify = (name: string): string =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 50);
 
-export const createSavedTrack = (track: Track, addedById: string): SavedTrack => ({
+export const createSavedTrack = (
+  track: Track,
+  addedById: string,
+): SavedTrack => ({
   title: track.title,
   url: track.url,
   duration: track.duration,
@@ -197,9 +201,7 @@ class JsonMusicLibraryService implements MusicLibraryService {
       this.logger.debug('Loaded music library from disk.');
     } catch (error) {
       const isMissingFile =
-        error instanceof Error &&
-        'code' in error &&
-        error.code === 'ENOENT';
+        error instanceof Error && 'code' in error && error.code === 'ENOENT';
 
       if (!isMissingFile) {
         throw error;
@@ -258,11 +260,11 @@ class JsonMusicLibraryService implements MusicLibraryService {
     const slug = this.requireSlug(name);
 
     if (guild.playlists[slug]) {
-      throw new Error(`A playlist named "${name}" already exists.`);
+      throw new UserFacingError(`A playlist named "${name}" already exists.`);
     }
 
     if (Object.keys(guild.playlists).length >= MAX_PLAYLISTS_PER_GUILD) {
-      throw new Error(
+      throw new UserFacingError(
         `This server already has ${MAX_PLAYLISTS_PER_GUILD} playlists.`,
       );
     }
@@ -303,7 +305,8 @@ class JsonMusicLibraryService implements MusicLibraryService {
   }
 
   getPlaylist(guildId: string, name: string): SavedPlaylist | null {
-    const playlist = this.getOrCreateGuild(guildId).playlists[this.requireSlug(name)];
+    const playlist =
+      this.getOrCreateGuild(guildId).playlists[this.requireSlug(name)];
     return playlist ? clonePlaylist(playlist) : null;
   }
 
@@ -315,7 +318,7 @@ class JsonMusicLibraryService implements MusicLibraryService {
     const playlist = this.requirePlaylist(guildId, name);
 
     if (playlist.tracks.length >= MAX_PLAYLIST_TRACKS) {
-      throw new Error(
+      throw new UserFacingError(
         `Playlist "${playlist.name}" already has ${MAX_PLAYLIST_TRACKS} tracks.`,
       );
     }
@@ -351,7 +354,8 @@ class JsonMusicLibraryService implements MusicLibraryService {
     guildId: string,
     name: string,
   ): Promise<SavedPlaylist | null> {
-    const playlist = this.getOrCreateGuild(guildId).playlists[this.requireSlug(name)];
+    const playlist =
+      this.getOrCreateGuild(guildId).playlists[this.requireSlug(name)];
 
     if (!playlist) {
       return null;
@@ -490,10 +494,11 @@ class JsonMusicLibraryService implements MusicLibraryService {
   }
 
   private requirePlaylist(guildId: string, name: string): SavedPlaylist {
-    const playlist = this.getOrCreateGuild(guildId).playlists[this.requireSlug(name)];
+    const playlist =
+      this.getOrCreateGuild(guildId).playlists[this.requireSlug(name)];
 
     if (!playlist) {
-      throw new Error(`Playlist "${name}" does not exist.`);
+      throw new UserFacingError(`Playlist "${name}" does not exist.`);
     }
 
     return playlist;
@@ -503,7 +508,9 @@ class JsonMusicLibraryService implements MusicLibraryService {
     const slug = slugify(name);
 
     if (!slug) {
-      throw new Error('Playlist name must include letters or numbers.');
+      throw new UserFacingError(
+        'Playlist name must include letters or numbers.',
+      );
     }
 
     return slug;

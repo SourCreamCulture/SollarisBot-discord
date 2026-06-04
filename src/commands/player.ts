@@ -28,7 +28,9 @@ export const playerCommand: CommandModule = {
     .setDescription('Control playback and inspect what is playing right now.')
     .setDMPermission(false)
     .addSubcommand((subcommand) =>
-      subcommand.setName('now').setDescription('Show details about the current track.'),
+      subcommand
+        .setName('now')
+        .setDescription('Show details about the current track.'),
     )
     .addSubcommand((subcommand) =>
       subcommand.setName('pause').setDescription('Pause the current track.'),
@@ -97,7 +99,9 @@ export const playerCommand: CommandModule = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName('autoplay')
-        .setDescription('Toggle autoplay for related tracks when the queue runs out.')
+        .setDescription(
+          'Toggle autoplay for related tracks when the queue runs out.',
+        )
         .addStringOption((option) =>
           option
             .setName('state')
@@ -250,7 +254,9 @@ export const playerCommand: CommandModule = {
 
         queue.delete();
         await context.queueState.clear(context.interaction.guildId);
-        await context.replySuccess('Disconnected from voice chat and cleared the session.');
+        await context.replySuccess(
+          'Disconnected from voice chat and cleared the session.',
+        );
         return;
       }
       case 'loop': {
@@ -279,7 +285,9 @@ export const playerCommand: CommandModule = {
         const track = queue.currentTrack;
 
         if (!track) {
-          await context.replyError('There is no current track to seek through.');
+          await context.replyError(
+            'There is no current track to seek through.',
+          );
           return;
         }
 
@@ -395,7 +403,9 @@ export const playerCommand: CommandModule = {
           return;
         }
 
-        const settings = context.musicSettings.getSettings(context.interaction.guildId);
+        const settings = context.musicSettings.getSettings(
+          context.interaction.guildId,
+        );
 
         if (!settings.voteSkipEnabled) {
           await context.replyError('Vote skip is disabled in this server.');
@@ -430,7 +440,9 @@ export const playerCommand: CommandModule = {
         const skipped = queue.node.skip();
 
         if (!skipped) {
-          await context.replyError('The vote passed, but I could not skip the track.');
+          await context.replyError(
+            'The vote passed, but I could not skip the track.',
+          );
           return;
         }
 

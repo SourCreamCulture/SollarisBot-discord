@@ -44,7 +44,11 @@ const stateSchema = z.object({
   currentTrack: savedTrackSchema.nullable(),
   upcomingTracks: z.array(savedTrackSchema),
   volume: z.number().int().min(1).max(100),
-  repeatMode: z.number().int().min(QueueRepeatMode.OFF).max(QueueRepeatMode.AUTOPLAY),
+  repeatMode: z
+    .number()
+    .int()
+    .min(QueueRepeatMode.OFF)
+    .max(QueueRepeatMode.AUTOPLAY),
   updatedAt: z.string().datetime(),
 });
 
@@ -90,7 +94,9 @@ export const createSavedQueueTrack = (
   addedAt: new Date().toISOString(),
 });
 
-export const createQueueSnapshot = (queue: GuildMusicSession): PersistedQueueState | null => {
+export const createQueueSnapshot = (
+  queue: GuildMusicSession,
+): PersistedQueueState | null => {
   const textChannelId = queue.metadata?.textChannel.id;
   const voiceChannelId = queue.channel?.id;
 
@@ -98,7 +104,10 @@ export const createQueueSnapshot = (queue: GuildMusicSession): PersistedQueueSta
     return null;
   }
 
-  const fallbackUserId = queue.metadata?.requestedById ?? queue.guild.members.me?.id ?? queue.guild.client.user.id;
+  const fallbackUserId =
+    queue.metadata?.requestedById ??
+    queue.guild.members.me?.id ??
+    queue.guild.client.user.id;
 
   return {
     guildId: queue.guild.id,
@@ -107,9 +116,9 @@ export const createQueueSnapshot = (queue: GuildMusicSession): PersistedQueueSta
     currentTrack: queue.currentTrack
       ? createSavedQueueTrack(queue.currentTrack, fallbackUserId)
       : null,
-    upcomingTracks: queue.tracks.toArray().map((track) =>
-      createSavedQueueTrack(track, fallbackUserId),
-    ),
+    upcomingTracks: queue.tracks
+      .toArray()
+      .map((track) => createSavedQueueTrack(track, fallbackUserId)),
     volume: queue.node.volume,
     repeatMode: queue.repeatMode,
     updatedAt: new Date().toISOString(),
@@ -151,14 +160,17 @@ class JsonQueueStateService implements QueueStateService {
       }
 
       this.states = new Map(
-        Object.entries(parsed.data.guilds).map(([guildId, state]) => [guildId, state]),
+        Object.entries(parsed.data.guilds).map(([guildId, state]) => [
+          guildId,
+          state,
+        ]),
       );
-      this.logger.debug(`Loaded ${this.states.size} persisted queue state(s) from disk.`);
+      this.logger.debug(
+        `Loaded ${this.states.size} persisted queue state(s) from disk.`,
+      );
     } catch (error) {
       const isMissingFile =
-        error instanceof Error &&
-        'code' in error &&
-        error.code === 'ENOENT';
+        error instanceof Error && 'code' in error && error.code === 'ENOENT';
 
       if (!isMissingFile) {
         throw error;
@@ -195,7 +207,10 @@ class JsonQueueStateService implements QueueStateService {
     const snapshot: StoredFile = {
       version: 1,
       guilds: Object.fromEntries(
-        [...this.states.entries()].map(([guildId, state]) => [guildId, cloneState(state)]),
+        [...this.states.entries()].map(([guildId, state]) => [
+          guildId,
+          cloneState(state),
+        ]),
       ),
     };
 

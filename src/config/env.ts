@@ -13,55 +13,63 @@ import type { BotConfig, LogLevel } from '../types/bot';
 const YOUTUBE_EXTRACTOR_ID =
   'com.retrouser955.discord-player.discord-player-youtubei';
 
-const schema = z.object({
-  DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
-  DISCORD_CLIENT_ID: z.string().min(1, 'DISCORD_CLIENT_ID is required'),
-  DISCORD_GUILD_ID: z.string().min(1).optional(),
-  APEX_STATS_PROVIDER: z.enum(['tracker', 'mozambique']).default('tracker'),
-  TRACKER_API_KEY: z.string().min(1).optional(),
-  MOZAMBIQUE_API_KEY: z.string().min(1).optional(),
-  APEX_LINKS_FILE: z.string().min(1).default(DEFAULT_APEX_LINKS_FILE),
-  LOG_LEVEL: z
-    .enum(['debug', 'info', 'warn', 'error'] satisfies [LogLevel, ...LogLevel[]])
-    .default('info'),
-  MUSIC_DEFAULT_VOLUME: z.coerce.number().int().min(1).max(100).default(80),
-  MUSIC_SETTINGS_FILE: z.string().min(1).default(DEFAULT_MUSIC_SETTINGS_FILE),
-  MUSIC_LIBRARY_FILE: z.string().min(1).default(DEFAULT_MUSIC_LIBRARY_FILE),
-  MUSIC_QUEUE_STATE_FILE: z.string().min(1).default(DEFAULT_MUSIC_QUEUE_STATE_FILE),
-  MUSIC_VOTE_SKIP_THRESHOLD: z.coerce.number().min(0.1).max(1).default(0.5),
-  MUSIC_LEAVE_ON_EMPTY_COOLDOWN_MS: z.coerce
-    .number()
-    .int()
-    .min(0)
-    .default(30_000),
-  MUSIC_LEAVE_ON_END_COOLDOWN_MS: z.coerce
-    .number()
-    .int()
-    .min(0)
-    .default(30_000),
-  MUSIC_LEAVE_ON_STOP_COOLDOWN_MS: z.coerce
-    .number()
-    .int()
-    .min(0)
-    .default(1_000),
-}).superRefine((env, context) => {
-  if (env.APEX_STATS_PROVIDER === 'tracker' && !env.TRACKER_API_KEY) {
-    context.addIssue({
-      code: 'custom',
-      path: ['TRACKER_API_KEY'],
-      message: 'TRACKER_API_KEY is required when APEX_STATS_PROVIDER=tracker',
-    });
-  }
+const schema = z
+  .object({
+    DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
+    DISCORD_CLIENT_ID: z.string().min(1, 'DISCORD_CLIENT_ID is required'),
+    DISCORD_GUILD_ID: z.string().min(1).optional(),
+    APEX_STATS_PROVIDER: z.enum(['tracker', 'mozambique']).default('tracker'),
+    TRACKER_API_KEY: z.string().min(1).optional(),
+    MOZAMBIQUE_API_KEY: z.string().min(1).optional(),
+    APEX_LINKS_FILE: z.string().min(1).default(DEFAULT_APEX_LINKS_FILE),
+    LOG_LEVEL: z
+      .enum(['debug', 'info', 'warn', 'error'] satisfies [
+        LogLevel,
+        ...LogLevel[],
+      ])
+      .default('info'),
+    MUSIC_DEFAULT_VOLUME: z.coerce.number().int().min(1).max(100).default(80),
+    MUSIC_SETTINGS_FILE: z.string().min(1).default(DEFAULT_MUSIC_SETTINGS_FILE),
+    MUSIC_LIBRARY_FILE: z.string().min(1).default(DEFAULT_MUSIC_LIBRARY_FILE),
+    MUSIC_QUEUE_STATE_FILE: z
+      .string()
+      .min(1)
+      .default(DEFAULT_MUSIC_QUEUE_STATE_FILE),
+    MUSIC_VOTE_SKIP_THRESHOLD: z.coerce.number().min(0.1).max(1).default(0.5),
+    MUSIC_LEAVE_ON_EMPTY_COOLDOWN_MS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .default(30_000),
+    MUSIC_LEAVE_ON_END_COOLDOWN_MS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .default(30_000),
+    MUSIC_LEAVE_ON_STOP_COOLDOWN_MS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .default(1_000),
+  })
+  .superRefine((env, context) => {
+    if (env.APEX_STATS_PROVIDER === 'tracker' && !env.TRACKER_API_KEY) {
+      context.addIssue({
+        code: 'custom',
+        path: ['TRACKER_API_KEY'],
+        message: 'TRACKER_API_KEY is required when APEX_STATS_PROVIDER=tracker',
+      });
+    }
 
-  if (env.APEX_STATS_PROVIDER === 'mozambique' && !env.MOZAMBIQUE_API_KEY) {
-    context.addIssue({
-      code: 'custom',
-      path: ['MOZAMBIQUE_API_KEY'],
-      message:
-        'MOZAMBIQUE_API_KEY is required when APEX_STATS_PROVIDER=mozambique',
-    });
-  }
-});
+    if (env.APEX_STATS_PROVIDER === 'mozambique' && !env.MOZAMBIQUE_API_KEY) {
+      context.addIssue({
+        code: 'custom',
+        path: ['MOZAMBIQUE_API_KEY'],
+        message:
+          'MOZAMBIQUE_API_KEY is required when APEX_STATS_PROVIDER=mozambique',
+      });
+    }
+  });
 
 export const loadConfig = (): BotConfig => {
   const result = schema.safeParse(process.env);

@@ -18,7 +18,8 @@ const resolveLogLevel = (): LogLevel => {
 };
 
 const createMigrationConfig = (): BotConfig => {
-  const libraryFile = process.env.MUSIC_LIBRARY_FILE?.trim() || 'data/music-library.json';
+  const libraryFile =
+    process.env.MUSIC_LIBRARY_FILE?.trim() || 'data/music-library.json';
   const logLevel = resolveLogLevel();
 
   return {
@@ -46,7 +47,10 @@ const createMigrationConfig = (): BotConfig => {
 export const runSpotifyLibraryMigration = async (): Promise<void> => {
   const config = createMigrationConfig();
   const logger = createLogger(config.logLevel);
-  const library = await createJsonMusicLibraryService(config.music.libraryFile, logger);
+  const library = await createJsonMusicLibraryService(
+    config.music.libraryFile,
+    logger,
+  );
   const client = new Client({
     intents: [GatewayIntentBits.Guilds],
   });

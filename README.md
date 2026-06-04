@@ -6,18 +6,17 @@ A Discord bot built with Node.js and TypeScript for a private server. It current
 
 - `/apex link`, `/apex unlink`, `/apex me`
 - `/apex member`, `/apex lookup`, `/apex legend`
-- `/play <query>` for YouTube searches and URLs
-- `/search <query>` with an interactive result picker
-- `/playnext <query>` to put a track right after the current song
-- `/favorite` for personal saved tracks
-- `/playlist` for shared server playlists
+- `/bot status` for uptime, ping, memory, and music queue health
+- `/play now <query>` for YouTube searches, URLs, and Spotify playlist imports
+- `/play next <query>` to put a track or playlist right after the current song
+- `/library favorite ...` for personal saved tracks
+- `/library playlist ...` for shared server playlists
 - Playlist and favorite autocomplete while typing command options
-- `/pause`, `/resume`, `/skip`, `/stop`, `/leave`
-- `/skipto`, `/move`, `/clear`, `/seek`, `/history`, `/replay`
-- `/voteskip` for shared listener-driven skips
-- `/musicsettings` for persistent server music settings
-- `/queue`, `/nowplaying`
-- `/loop`, `/shuffle`, `/remove`, `/volume`, `/autoplay`
+- `/player pause`, `/player resume`, `/player skip`, `/player stop`, `/player leave`
+- `/player now`, `/player seek`, `/player replay`, `/player volume`, `/player loop`, `/player autoplay`
+- `/queue view`, `/queue jump`, `/queue move`, `/queue remove`, `/queue clear`, `/queue shuffle`, `/queue history`
+- `/player voteskip` for shared listener-driven skips
+- `/music settings ...` for persistent server music settings
 - One queue per guild
 - Voice-channel guardrails and friendly error messages
 - Optional DJ role restrictions for playback controls
@@ -84,7 +83,7 @@ A Discord bot built with Node.js and TypeScript for a private server. It current
 
 ## Notes
 
-- Music queues are still in-memory and are lost when the bot restarts.
+- Live playback is runtime state, but queue recovery metadata is persisted locally so 24/7 mode can restore the bot after a restart.
 - Server music settings are persisted locally in the JSON file configured by `MUSIC_SETTINGS_FILE`.
 - Music favorites and playlists are persisted locally in the JSON file configured by `MUSIC_LIBRARY_FILE`.
 - Queue recovery metadata is persisted locally in the JSON file configured by `MUSIC_QUEUE_STATE_FILE`.

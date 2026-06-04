@@ -20,7 +20,7 @@ import type { QueueStateService } from '../music/queueState';
 import type { MusicSettingsService } from '../music/settings';
 import type { VoteSkipManager } from '../music/voteSkip';
 
-import type { Logger } from "../utils/logger";
+import type { Logger } from '../utils/logger';
 
 export interface BotConfig {
   discordToken: string;

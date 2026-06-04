@@ -37,7 +37,8 @@ const createStat = (
 ): ApexProfileStat | undefined => {
   const numericValue = asNumber(value);
   const resolvedDisplayValue =
-    displayValue ?? (typeof numericValue === 'number' ? String(numericValue) : undefined);
+    displayValue ??
+    (typeof numericValue === 'number' ? String(numericValue) : undefined);
 
   if (numericValue === undefined && !resolvedDisplayValue) {
     return undefined;
@@ -87,7 +88,9 @@ const statKeyFromName = (name: string): string =>
   name
     .replace(/^BR\s+/i, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]+(.)/g, (_, character: string) => character.toUpperCase())
+    .replace(/[^a-z0-9]+(.)/g, (_, character: string) =>
+      character.toUpperCase(),
+    )
     .replace(/[^a-zA-Z0-9]/g, '');
 
 const addStat = (
@@ -100,7 +103,9 @@ const addStat = (
   }
 };
 
-const getLegendAssets = (legend: Record<string, unknown>): Record<string, unknown> => {
+const getLegendAssets = (
+  legend: Record<string, unknown>,
+): Record<string, unknown> => {
   const assets = asStringMap(legend.ImgAssets);
   return {
     icon: assets.icon,
@@ -192,7 +197,10 @@ const buildLegendSegments = (
     });
   }
 
-  if (selectedLegendName && !segments.some((segment) => segment.metadata?.name === selectedLegendName)) {
+  if (
+    selectedLegendName &&
+    !segments.some((segment) => segment.metadata?.name === selectedLegendName)
+  ) {
     const stats: Record<string, ApexProfileStat> = {};
     const trackerData = Array.isArray(selected.data) ? selected.data : [];
 
@@ -352,7 +360,8 @@ class MozambiqueApexApiClient implements ApexApiClient {
 
     if (typeof payload.Error === 'string') {
       const errorCode = Number(payload.Error);
-      const message = asString(payload.Message) ?? 'Apex Legends Status returned an error.';
+      const message =
+        asString(payload.Message) ?? 'Apex Legends Status returned an error.';
 
       if (errorCode === 404) {
         throw new ApexError(
