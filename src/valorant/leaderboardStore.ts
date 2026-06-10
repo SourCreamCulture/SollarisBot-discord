@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { z } from 'zod';
 
 import type { Logger } from '../utils/logger';
-import { ValorantError } from './types';
+import { ValorantError, type ValorantLeaderboardSnapshot } from './types';
 
 export const DEFAULT_VALORANT_LEADERBOARD_STATE_FILE =
   'data/valorant-leaderboard.json';
@@ -13,6 +13,7 @@ export interface ValorantLeaderboardMessageState {
   channelId: string;
   messageId: string;
   updatedAt: string;
+  snapshots: Record<string, ValorantLeaderboardSnapshot>;
 }
 
 export interface ValorantLeaderboardStateStore {
@@ -25,6 +26,23 @@ const stateSchema = z.object({
   channelId: z.string().min(1),
   messageId: z.string().min(1),
   updatedAt: z.string().datetime(),
+  snapshots: z
+    .record(
+      z.string(),
+      z.object({
+        discordUserId: z.string().min(1),
+        name: z.string().min(1),
+        tag: z.string().min(1),
+        region: z.enum(['na', 'eu', 'ap', 'kr', 'latam', 'br']),
+        platform: z.enum(['pc', 'console']),
+        rank: z.string().min(1),
+        rr: z.number().optional(),
+        elo: z.number().optional(),
+        leaderboardPosition: z.number().int().positive(),
+      }),
+    )
+    .optional()
+    .default({}),
 });
 
 const fileSchema = z.object({
@@ -37,6 +55,20 @@ type StoredFile = z.infer<typeof fileSchema>;
 const createEmptyFile = (): StoredFile => ({
   version: 1,
   channels: {},
+});
+
+const cloneSnapshots = (
+  snapshots: Record<string, ValorantLeaderboardSnapshot>,
+): Record<string, ValorantLeaderboardSnapshot> =>
+  Object.fromEntries(
+    Object.entries(snapshots).map(([key, value]) => [key, { ...value }]),
+  );
+
+const cloneState = (
+  state: ValorantLeaderboardMessageState,
+): ValorantLeaderboardMessageState => ({
+  ...state,
+  snapshots: cloneSnapshots(state.snapshots),
 });
 
 const writeJsonAtomic = async (
@@ -116,11 +148,11 @@ class JsonValorantLeaderboardStateStore implements ValorantLeaderboardStateStore
 
   getState(channelId: string): ValorantLeaderboardMessageState | null {
     const state = this.channels.get(channelId);
-    return state ? { ...state } : null;
+    return state ? cloneState(state) : null;
   }
 
   async setState(state: ValorantLeaderboardMessageState): Promise<void> {
-    this.channels.set(state.channelId, { ...state });
+    this.channels.set(state.channelId, cloneState(state));
     await this.persist();
   }
 
@@ -139,7 +171,10 @@ class JsonValorantLeaderboardStateStore implements ValorantLeaderboardStateStore
     const snapshot: StoredFile = {
       version: 1,
       channels: Object.fromEntries(
-        [...this.channels.entries()].map(([key, value]) => [key, { ...value }]),
+        [...this.channels.entries()].map(([key, value]) => [
+          key,
+          cloneState(value),
+        ]),
       ),
     };
 

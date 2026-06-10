@@ -110,6 +110,7 @@ class FakeValorantHenrikClient implements ValorantHenrikClient {
     name: string;
     tag: string;
   }> = [];
+  public readonly mmrOverrides = new Map<string, Partial<ValorantMmr>>();
 
   async getAccount(input: {
     name: string;
@@ -143,6 +144,7 @@ class FakeValorantHenrikClient implements ValorantHenrikClient {
       peakSeason: 'e9a1',
       seasonalWins: 10,
       seasonalGames: 20,
+      ...this.mmrOverrides.get(input.name),
     };
   }
 
@@ -411,6 +413,91 @@ describe('createValorantService', () => {
     assert.equal(card.fields.length, 1);
     assert.match(card.fields[0].name, /Entry#NA1/);
     assert.match(card.fields[0].value, /EntryDog/);
+  });
+
+  it('adds movement indicators and current snapshots when history is provided', async () => {
+    const henrikClient = new FakeValorantHenrikClient();
+    henrikClient.mmrOverrides.set('Entry', {
+      currentTier: 'Gold 1',
+      rr: 12,
+      elo: 900,
+    });
+    const service = createValorantService({
+      staticClient: new FakeValorantStaticClient(),
+      henrikClient,
+      store: new InMemoryValorantLinkStore([
+        createLink('self-user', 'Self'),
+        createLink('entry-user', 'Entry'),
+      ]),
+    });
+
+    const card = await service.getLeaderboardCard({
+      sortBy: 'rank',
+      previousSnapshots: {
+        'self-user': {
+          discordUserId: 'self-user',
+          name: 'Self',
+          tag: 'NA1',
+          region: 'na',
+          platform: 'pc',
+          rank: 'Gold 2',
+          rr: 50,
+          elo: 984,
+          leaderboardPosition: 1,
+        },
+        'entry-user': {
+          discordUserId: 'entry-user',
+          name: 'Entry',
+          tag: 'NA1',
+          region: 'na',
+          platform: 'pc',
+          rank: 'Silver 3',
+          rr: 90,
+          elo: 850,
+          leaderboardPosition: 2,
+        },
+      },
+    });
+
+    assert.match(card.fields[0].value, /\(\+16 RR\)/);
+    assert.match(card.fields[1].value, /\(rank up from Silver 3\)/);
+    assert.equal(card.snapshots?.['self-user']?.rr, 66);
+    assert.equal(card.snapshots?.['entry-user']?.rank, 'Gold 1');
+  });
+
+  it('labels first-run and missing leaderboard history cleanly', async () => {
+    const service = createValorantService({
+      staticClient: new FakeValorantStaticClient(),
+      henrikClient: new FakeValorantHenrikClient(),
+      store: new InMemoryValorantLinkStore([createLink('self-user', 'Self')]),
+    });
+
+    const firstRunCard = await service.getLeaderboardCard({
+      sortBy: 'rank',
+      previousSnapshots: {},
+    });
+    const missingHistoryCard = await service.getLeaderboardCard({
+      sortBy: 'rank',
+      previousSnapshots: {
+        'other-user': {
+          discordUserId: 'other-user',
+          name: 'Other',
+          tag: 'NA1',
+          region: 'na',
+          platform: 'pc',
+          rank: 'Gold 1',
+          rr: 1,
+          elo: 900,
+          leaderboardPosition: 1,
+        },
+      },
+    });
+
+    assert.match(firstRunCard.fields[0].value, /\(first snapshot\)/);
+    assert.match(
+      missingHistoryCard.fields[0].value,
+      /\(no previous snapshot\)/,
+    );
   });
 
   it('balances linked players into two teams', async () => {

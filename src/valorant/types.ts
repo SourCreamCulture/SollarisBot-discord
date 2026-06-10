@@ -197,6 +197,18 @@ export interface ValorantLeaderboardEntry {
   matches?: number;
 }
 
+export interface ValorantLeaderboardSnapshot {
+  discordUserId: string;
+  name: string;
+  tag: string;
+  region: ValorantRegion;
+  platform: ValorantPlatform;
+  rank: string;
+  rr?: number;
+  elo?: number;
+  leaderboardPosition: number;
+}
+
 export interface ValorantLeaderboardDisplayName {
   discordUserId: string;
   displayName: string;
@@ -287,6 +299,7 @@ export interface ValorantService {
     mode?: string;
     discordUserIds?: string[];
     displayNames?: ValorantLeaderboardDisplayName[];
+    previousSnapshots?: Record<string, ValorantLeaderboardSnapshot>;
   }): Promise<ValorantLeaderboardCard>;
   getTeamBalanceCard(input: {
     players: Array<{ discordUserId: string; displayName: string }>;
@@ -323,5 +336,7 @@ export type ValorantRankCard = ValorantBaseCard;
 export type ValorantMatchesCard = ValorantBaseCard;
 export type ValorantMatchCard = ValorantBaseCard;
 export type ValorantStatsCard = ValorantBaseCard;
-export type ValorantLeaderboardCard = ValorantBaseCard;
+export type ValorantLeaderboardCard = ValorantBaseCard & {
+  snapshots?: Record<string, ValorantLeaderboardSnapshot>;
+};
 export type ValorantTeamBalanceCard = ValorantBaseCard;

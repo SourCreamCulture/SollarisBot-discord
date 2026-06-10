@@ -10,6 +10,7 @@ import type { Logger } from '../utils/logger';
 import {
   ValorantError,
   type ValorantBaseCard,
+  type ValorantLeaderboardCard,
   type ValorantLeaderboardDisplayName,
   type ValorantLinkStore,
   type ValorantService,
@@ -36,20 +37,6 @@ const buildEmbed = (
     .addFields(card.fields)
     .setFooter({
       text: `${card.footer} - Updates every ${Math.round(
-        refreshIntervalMs / 60_000,
-      )} minutes`,
-    })
-    .setTimestamp();
-
-const buildEmptyEmbed = (refreshIntervalMs: number): EmbedBuilder =>
-  new EmbedBuilder()
-    .setColor(VALORANT_COLOR)
-    .setTitle('Valorant Server Leaderboard')
-    .setDescription(
-      'No linked Valorant accounts are available yet. Use `/valorant link` to join the leaderboard.',
-    )
-    .setFooter({
-      text: `Linked account leaderboard - Updates every ${Math.round(
         refreshIntervalMs / 60_000,
       )} minutes`,
     })
@@ -113,8 +100,9 @@ export class ValorantLeaderboardManager {
 
     const textChannel = channel as GuildTextBasedChannel;
     const members = await this.getGuildLinkedMembers(textChannel);
-    const embed = await this.buildLeaderboardEmbed(members);
     const existing = this.stateStore.getState(channelId);
+    const card = await this.buildLeaderboardCard(members, existing?.snapshots);
+    const embed = buildEmbed(card, this.options.refreshIntervalMs);
 
     if (existing) {
       const message = await this.fetchMessage(textChannel, existing.messageId);
@@ -125,6 +113,7 @@ export class ValorantLeaderboardManager {
           channelId,
           messageId: message.id,
           updatedAt: new Date().toISOString(),
+          snapshots: card.snapshots ?? {},
         });
         return;
       }
@@ -137,29 +126,40 @@ export class ValorantLeaderboardManager {
       channelId,
       messageId: message.id,
       updatedAt: new Date().toISOString(),
+      snapshots: card.snapshots ?? {},
     });
   }
 
-  private async buildLeaderboardEmbed(
+  private async buildLeaderboardCard(
     members:
       | {
           discordUserIds: string[];
           displayNames: ValorantLeaderboardDisplayName[];
         }
       | undefined,
-  ): Promise<EmbedBuilder> {
+    previousSnapshots?: ValorantLeaderboardCard['snapshots'],
+  ): Promise<ValorantLeaderboardCard> {
     try {
       const card = await this.service.getLeaderboardCard({
         sortBy: DEFAULT_SORT,
         size: DEFAULT_SIZE,
         discordUserIds: members?.discordUserIds,
         displayNames: members?.displayNames,
+        previousSnapshots: previousSnapshots ?? {},
       });
 
-      return buildEmbed(card, this.options.refreshIntervalMs);
+      return card;
     } catch (error) {
       if (error instanceof ValorantError && error.code === 'not_found') {
-        return buildEmptyEmbed(this.options.refreshIntervalMs);
+        return {
+          title: 'Valorant Server Leaderboard',
+          description:
+            'No linked Valorant accounts are available yet. Use `/valorant link` to join the leaderboard.',
+          color: VALORANT_COLOR,
+          fields: [],
+          footer: 'Linked account leaderboard',
+          snapshots: {},
+        };
       }
 
       throw error;

@@ -8,6 +8,7 @@ import {
   type ValorantLeaderboardCard,
   type ValorantLeaderboardDisplayName,
   type ValorantLeaderboardEntry,
+  type ValorantLeaderboardSnapshot,
   type ValorantLinkStore,
   type ValorantLinkedAccount,
   type ValorantMatchesCard,
@@ -55,6 +56,104 @@ const formatSigned = (value: number | undefined): string => {
 
   return value > 0 ? `+${value}` : String(value);
 };
+
+const formatLeaderboardMovementDirection = (
+  current: ValorantLeaderboardEntry,
+  previous: ValorantLeaderboardSnapshot,
+): 'up' | 'down' | null => {
+  if (current.elo !== undefined && previous.elo !== undefined) {
+    if (current.elo > previous.elo) {
+      return 'up';
+    }
+
+    if (current.elo < previous.elo) {
+      return 'down';
+    }
+  }
+
+  if (current.rr !== undefined && previous.rr !== undefined) {
+    if (current.rr > previous.rr) {
+      return 'up';
+    }
+
+    if (current.rr < previous.rr) {
+      return 'down';
+    }
+  }
+
+  return null;
+};
+
+const isSameLeaderboardAccount = (
+  current: ValorantLeaderboardEntry,
+  previous: ValorantLeaderboardSnapshot,
+): boolean =>
+  current.name === previous.name &&
+  current.tag === previous.tag &&
+  current.region === previous.region &&
+  current.platform === previous.platform;
+
+const formatLeaderboardMovement = (
+  current: ValorantLeaderboardEntry,
+  previous: ValorantLeaderboardSnapshot | undefined,
+  isFirstSnapshot: boolean,
+): string => {
+  if (!previous) {
+    return isFirstSnapshot ? 'first snapshot' : 'no previous snapshot';
+  }
+
+  if (!isSameLeaderboardAccount(current, previous)) {
+    return 'new linked account';
+  }
+
+  if (current.rank !== previous.rank) {
+    const direction = formatLeaderboardMovementDirection(current, previous);
+    const label =
+      direction === 'up'
+        ? 'rank up'
+        : direction === 'down'
+          ? 'rank down'
+          : 'rank changed';
+
+    return `${label} from ${previous.rank}`;
+  }
+
+  if (current.rr !== undefined && previous.rr !== undefined) {
+    const delta = current.rr - previous.rr;
+
+    if (delta !== 0) {
+      return `${formatSigned(delta)} RR`;
+    }
+
+    return 'no change';
+  }
+
+  if (current.rr !== undefined) {
+    return 'RR now tracked';
+  }
+
+  return 'RR unavailable';
+};
+
+const createLeaderboardSnapshots = (
+  entries: ValorantLeaderboardEntry[],
+): Record<string, ValorantLeaderboardSnapshot> =>
+  Object.fromEntries(
+    entries.map((entry, index) => [
+      entry.discordUserId,
+      {
+        discordUserId: entry.discordUserId,
+        name: entry.name,
+        tag: entry.tag,
+        region: entry.region,
+        platform: entry.platform,
+        rank: entry.rank,
+        rr: entry.rr,
+        elo: entry.elo,
+        leaderboardPosition: index + 1,
+      },
+    ]),
+  );
 
 const formatDate = (unixSeconds: number | undefined): string =>
   unixSeconds === undefined ? 'Unknown date' : `<t:${unixSeconds}:R>`;
@@ -688,6 +787,7 @@ class DefaultValorantService implements ValorantService {
     mode?: string;
     discordUserIds?: string[];
     displayNames?: ValorantLeaderboardDisplayName[];
+    previousSnapshots?: Record<string, ValorantLeaderboardSnapshot>;
   }): Promise<ValorantLeaderboardCard> {
     const allowedUserIds = input.discordUserIds
       ? new Set(input.discordUserIds)
@@ -754,14 +854,15 @@ class DefaultValorantService implements ValorantService {
         }
       }),
     );
-    const ranked = entries
+    const sorted = entries
       .filter((entry): entry is ValorantLeaderboardEntry => Boolean(entry))
       .sort(
         (left, right) =>
           getLeaderboardSortValue(right, sortBy) -
           getLeaderboardSortValue(left, sortBy),
-      )
-      .slice(0, 10);
+      );
+    const ranked = sorted.slice(0, 10);
+    const snapshots = createLeaderboardSnapshots(sorted);
 
     if (ranked.length === 0) {
       throw new ValorantError(
@@ -773,7 +874,11 @@ class DefaultValorantService implements ValorantService {
     const card = createUtilityCard(
       'Valorant Server Leaderboard',
       `Sorted by **${sortBy.toUpperCase()}**.`,
-    );
+    ) as ValorantLeaderboardCard;
+    const shouldShowMovement = input.previousSnapshots !== undefined;
+    const isFirstSnapshot =
+      shouldShowMovement &&
+      Object.keys(input.previousSnapshots ?? {}).length === 0;
 
     card.fields = ranked.map((entry, index) => ({
       name: `${index + 1}. ${formatRiotId(entry.name, entry.tag)}`,
@@ -781,7 +886,15 @@ class DefaultValorantService implements ValorantService {
         displayNames.has(entry.discordUserId)
           ? `<@${entry.discordUserId}> - ${displayNames.get(entry.discordUserId)}`
           : `<@${entry.discordUserId}>`,
-        `${entry.rank}${entry.rr === undefined ? '' : ` - ${entry.rr} RR`}`,
+        `${entry.rank}${entry.rr === undefined ? '' : ` - ${entry.rr} RR`}${
+          shouldShowMovement
+            ? ` (${formatLeaderboardMovement(
+                entry,
+                input.previousSnapshots?.[entry.discordUserId],
+                isFirstSnapshot,
+              )})`
+            : ''
+        }`,
         entry.elo === undefined ? undefined : `Elo ${formatNumber(entry.elo)}`,
         entry.kda === undefined ? undefined : `KDA ${formatDecimal(entry.kda)}`,
         entry.winrate === undefined
@@ -795,6 +908,7 @@ class DefaultValorantService implements ValorantService {
         .join(' - '),
       inline: false,
     }));
+    card.snapshots = snapshots;
 
     return card;
   }
