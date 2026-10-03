@@ -1,3 +1,4 @@
+import { postLfg } from '../utils/lfg';
 import { EmbedBuilder, SlashCommandBuilder, userMention } from 'discord.js';
 
 import {
@@ -1010,23 +1011,19 @@ export const valorantCommand: CommandModule = {
             );
           }
 
-          await context.interaction.editReply({
-            embeds: [
-              createStatusEmbed(
-                'Valorant LFG',
-                [
-                  `${userMention(context.interaction.user.id)} is looking for **${needed}** player(s).`,
-                  `Role: **${role}**`,
-                  `Region: **${getValorantRegionLabel(region)}**`,
-                  `Rank: **${rank}**`,
-                  note ? `Note: ${note}` : undefined,
-                ]
-                  .filter(Boolean)
-                  .join('\n'),
-                VALORANT_COLOR,
-              ),
-            ],
-          });
+          await postLfg(
+            context,
+            'valorant',
+            needed,
+            [
+              `Role: **${role}**`,
+              `Region: **${getValorantRegionLabel(region)}**`,
+              `Rank: **${rank}**`,
+              note ? `Note: ${note}` : undefined,
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          );
           return;
         }
         case 'team-balance': {

@@ -2,47 +2,7 @@ import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 
 import type { CommandModule } from '../types/bot';
 
-const DURATION_PATTERN =
-  /(\d+)\s*(d|day|days|h|hr|hour|hours|m|min|minute|minutes|s|sec|second|seconds)/gi;
-
-const parseReminderTime = (input: string): Date | null => {
-  const trimmed = input.trim();
-
-  if (/^tomorrow$/i.test(trimmed)) {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0);
-    return tomorrow;
-  }
-
-  const absolute = new Date(trimmed);
-
-  if (Number.isFinite(absolute.getTime()) && absolute.getTime() > Date.now()) {
-    return absolute;
-  }
-
-  let totalMs = 0;
-  for (const match of trimmed.matchAll(DURATION_PATTERN)) {
-    const amount = Number.parseInt(match[1], 10);
-    const unit = match[2].toLowerCase();
-
-    if (unit.startsWith('d')) {
-      totalMs += amount * 86_400_000;
-    } else if (unit.startsWith('h')) {
-      totalMs += amount * 3_600_000;
-    } else if (unit.startsWith('m')) {
-      totalMs += amount * 60_000;
-    } else {
-      totalMs += amount * 1000;
-    }
-  }
-
-  if (totalMs <= 0) {
-    return null;
-  }
-
-  return new Date(Date.now() + totalMs);
-};
+import { parseReminderTime } from '../utils/scheduling';
 
 export const remindCommand: CommandModule = {
   data: new SlashCommandBuilder()
@@ -69,13 +29,55 @@ export const remindCommand: CommandModule = {
     )
     .addSubcommand((subcommand) =>
       subcommand.setName('list').setDescription('List your pending reminders.'),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('cancel')
+        .setDescription('Cancel one of your reminders in this server.')
+        .addStringOption((o) =>
+          o
+            .setName('id')
+            .setDescription('Reminder ID from /remind list')
+            .setRequired(true)
+            .setAutocomplete(true),
+        ),
     ),
+  autocomplete: async (context) => {
+    const input = context.interaction.options.getFocused().toLowerCase();
+    await context.interaction.respond(
+      context.utilityStore
+        .listReminders(context.interaction.user.id, context.interaction.guildId)
+        .filter((r) => r.message.toLowerCase().includes(input))
+        .slice(0, 25)
+        .map((r) => ({ name: r.message.slice(0, 100), value: r.id })),
+    );
+  },
   execute: async (context) => {
     const subcommand = context.interaction.options.getSubcommand(true);
 
+    if (subcommand === 'cancel') {
+      const reminder = context.utilityStore.getReminder(
+        context.interaction.options.getString('id', true),
+      );
+      if (
+        !reminder ||
+        reminder.userId !== context.interaction.user.id ||
+        reminder.guildId !== context.interaction.guildId
+      ) {
+        await context.replyError(
+          'That reminder was not found among your reminders in this server.',
+        );
+        return;
+      }
+      await context.deferReply({ ephemeral: true });
+      await context.utilityStore.removeReminder(reminder.id);
+      await context.replySuccess('Reminder cancelled.');
+      return;
+    }
+
     if (subcommand === 'list') {
       const reminders = context.utilityStore
-        .listReminders(context.interaction.user.id)
+        .listReminders(context.interaction.user.id, context.interaction.guildId)
         .slice(0, 10);
       const embed = new EmbedBuilder()
         .setColor(0x4f9eed)
@@ -87,7 +89,7 @@ export const remindCommand: CommandModule = {
                   (reminder) =>
                     `<t:${Math.floor(
                       new Date(reminder.remindAt).getTime() / 1000,
-                    )}:R> - ${reminder.message}`,
+                    )}:R> - ${reminder.message.slice(0, 180)}\nID: \`${reminder.id}\`${reminder.attempts ? ` · delivery retries: ${reminder.attempts}` : ''}`,
                 )
                 .join('\n')
             : 'You do not have any pending reminders.',
@@ -100,6 +102,8 @@ export const remindCommand: CommandModule = {
 
     const remindAt = parseReminderTime(
       context.interaction.options.getString('when', true),
+      context.utilityStore.getGuildSettings(context.interaction.guildId)
+        .timezone,
     );
 
     if (!remindAt) {
@@ -109,6 +113,7 @@ export const remindCommand: CommandModule = {
       return;
     }
 
+    await context.deferReply({ ephemeral: true });
     const reminder = await context.utilityStore.addReminder({
       guildId: context.interaction.guildId,
       channelId: context.interaction.channelId,

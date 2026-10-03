@@ -1,3 +1,4 @@
+import { settingsCommand } from './settings';
 import type { CommandModule } from '../types/bot';
 import { apexCommand } from './apex';
 import { botCommand } from './bot';
@@ -13,6 +14,7 @@ import { rollCommand } from './roll';
 import { valorantCommand } from './valorant';
 
 export const commands: CommandModule[] = [
+  settingsCommand,
   apexCommand,
   botCommand,
   playCommand,

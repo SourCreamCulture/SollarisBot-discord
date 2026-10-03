@@ -52,7 +52,7 @@ describe('createJsonUtilityStore', () => {
       guildId: 'guild-1',
       channelId: 'channel-1',
       title: 'Ranked Night',
-      startsAt: '2026-04-24T00:00:00.000Z',
+      startsAt: '2099-04-24T00:00:00.000Z',
       createdById: 'user-1',
     });
 

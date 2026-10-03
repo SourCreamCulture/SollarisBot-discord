@@ -1,3 +1,5 @@
+import { commands } from './index';
+import { buildHelpEmbed } from '../utils/help';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -29,6 +31,23 @@ export const botCommand: CommandModule = {
     .setName('bot')
     .setDescription('Check bot health and runtime status.')
     .setDMPermission(false)
+    .addSubcommand((s) =>
+      s
+        .setName('help')
+        .setDescription('Browse music, games, utilities, and admin commands.')
+        .addStringOption((o) =>
+          o
+            .setName('category')
+            .setDescription('Which commands to show')
+            .addChoices(
+              { name: 'All categories', value: 'all' },
+              { name: 'Music', value: 'music' },
+              { name: 'Games', value: 'games' },
+              { name: 'Utilities', value: 'utilities' },
+              { name: 'Administration', value: 'admin' },
+            ),
+        ),
+    )
     .addSubcommand((subcommand) =>
       subcommand
         .setName('status')
@@ -41,6 +60,19 @@ export const botCommand: CommandModule = {
     ),
   execute: async (context) => {
     const subcommand = context.interaction.options.getSubcommand(true);
+
+    if (subcommand === 'help') {
+      await context.interaction.reply({
+        embeds: [
+          buildHelpEmbed(
+            commands,
+            context.interaction.options.getString('category') ?? 'all',
+          ),
+        ],
+        ephemeral: true,
+      });
+      return;
+    }
 
     if (subcommand === 'changelog') {
       try {

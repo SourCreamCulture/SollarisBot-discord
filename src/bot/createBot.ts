@@ -1,3 +1,4 @@
+import { ensureGuildCommandAccess } from '../utils/guildPermissions';
 import {
   Client,
   Events,
@@ -77,7 +78,12 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
     config,
     logger,
   );
-  const musicPanel = new MusicPanelManager(player, logger, queueState);
+  const musicPanel = new MusicPanelManager(
+    player,
+    logger,
+    queueState,
+    musicSettings,
+  );
   const apexLinkStore = await createJsonApexLinkStore(
     config.apex.linksFile,
     logger,
@@ -130,6 +136,7 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
     logger,
     {
       channelId: config.valorant.leaderboardChannelId,
+      guildSettings: utilityStore,
       refreshIntervalMs: config.valorant.leaderboardRefreshIntervalMs,
     },
   );
@@ -273,6 +280,7 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
     );
 
     try {
+      if (!(await ensureGuildCommandAccess(context))) return;
       if (
         musicCommandNames.has(interaction.commandName) &&
         !(await ensureMusicTextChannel(context))
@@ -317,7 +325,9 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
   };
 
   client.on(Events.InteractionCreate, (interaction) => {
-    void handleInteraction(interaction);
+    void handleInteraction(interaction).catch((error) =>
+      logger.error('Interaction handling failed.', error),
+    );
   });
 
   client.on(Events.Error, (error) => {
@@ -425,6 +435,8 @@ export const createBot = async (config: BotConfig, logger: Logger) => {
       }
     }
 
+    await utilityInteractions.stop();
+    await valorantLeaderboard.stop();
     client.destroy();
   };
 

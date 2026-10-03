@@ -88,9 +88,9 @@ export const createCommandContext = (
       createErrorReply('Something went wrong', message),
     ),
   replyInfo: async (message: string) =>
-    sendResponse(interaction, createInfoReply('Music Update', message)),
+    sendResponse(interaction, createInfoReply('Bot Update', message)),
   replySuccess: async (message: string) =>
-    sendResponse(interaction, createSuccessReply('Music Update', message)),
+    sendResponse(interaction, createSuccessReply('Bot Update', message)),
   editReply: async ({
     title,
     description,

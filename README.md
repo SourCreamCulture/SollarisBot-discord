@@ -12,6 +12,8 @@ A Discord bot built with Node.js and TypeScript for a private server. It current
 - `/valorant leaderboard`, `/valorant lfg`, `/valorant team-balance`
 - Optional persistent Valorant ranked leaderboard embed that refreshes every 10 minutes
 - `/bot status` for uptime, ping, memory, and music queue health
+- `/bot help` with Music, Games, Utilities, and Administration categories
+- `/settings` for persistent per-guild channels, roles, scheduling, and leaderboard configuration
 - `/bot changelog` for recent bot updates
 - `/play now <query>` for YouTube searches, URLs, and Spotify playlist imports
 - `/play next <query>` to put a track or playlist right after the current song
@@ -29,6 +31,9 @@ A Discord bot built with Node.js and TypeScript for a private server. It current
 - `/music settings ...` for persistent server music settings and saved queue cleanup
 - `/music stats me`, `/music stats server`, `/music top tracks`, `/music top artists`
 - `/poll`, `/remind`, `/roll`, and `/event` for lightweight server utilities
+- Event edit/cancel controls, RSVP limits, timezone-aware scheduling, and automatic attendee reminders
+- Interactive Apex and Valorant LFG posts with Join/Leave/Close controls, open-slot counts, and automatic expiry
+- Reminder cancellation and persistent delivery retries
 - One queue per guild
 - Voice-channel guardrails and friendly error messages
 - Optional DJ role restrictions for playback controls
@@ -68,7 +73,7 @@ A Discord bot built with Node.js and TypeScript for a private server. It current
    - Tracker developer keys may still need to be whitelisted before API calls work. If Tracker lookups return `401 Unauthorized`, request API access/whitelisting through Tracker's developer support flow.
    - `HENRIKDEV_API_KEY` is required for `/valorant link`, `/valorant me`, `/valorant profile`, `/valorant rank`, `/valorant matches`, `/valorant match`, `/valorant stats`, `/valorant leaderboard`, `/valorant lfg` rank lookup, and `/valorant team-balance`.
    - `/valorant agent`, `/valorant map`, `/valorant weapon`, `/valorant random-agent`, `/valorant random-comp`, and `/valorant strat` use public Valorant-API game data and do not require a key.
-   - `VALORANT_LEADERBOARD_CHANNEL_ID` enables the persistent ranked leaderboard embed. It edits the same message when possible, refreshes according to `VALORANT_LEADERBOARD_REFRESH_INTERVAL_MS`, and includes newly linked users on each refresh.
+   - Configure the persistent ranked leaderboard in Discord with `/settings leaderboard channel:#ranked refresh-minutes:10`. It edits the same message and filters linked users by that guild’s membership. Legacy `VALORANT_LEADERBOARD_CHANNEL_ID` and `VALORANT_LEADERBOARD_REFRESH_INTERVAL_MS` values are migrated once at startup if that guild has no saved settings. After migration, Discord settings take precedence, including disabling the leaderboard.
 
 - `APEX_LINKS_FILE` controls where Discord-to-Apex links are stored on disk.
 - `APEX_WATCH_FILE` controls where Apex watch snapshots are stored on disk.
@@ -100,6 +105,32 @@ A Discord bot built with Node.js and TypeScript for a private server. It current
    ```bash
    npm run migrate:spotify-library
    ```
+
+## Configure each server in Discord
+
+Members with **Manage Server** permission can configure their guild without changing `.env` or restarting:
+
+- `/settings view` — show timezone, command channels/roles, and scheduling defaults.
+- `/settings channel target:event channel:#game-nights` — bind a command family to a text channel. Omit `channel` to remove the binding. Targets: `apex`, `valorant`, `lfg`, `event`, `poll`, `remind`, `roll`. The `lfg` target applies to both `/apex lfg` and `/valorant lfg`; other game commands use their game's target. Buttons obey the same restrictions.
+- `/settings role target:lfg role:@Players` — require a role. Omit `role` to clear it. Server managers bypass role requirements.
+- `/settings timezone zone:America/New_York` — interpret local event/reminder dates in this timezone. The default is UTC. An explicit ISO offset overrides the default; ambiguous or nonexistent daylight-saving wall times require an explicit offset.
+- `/settings event-reminder minutes:15` — default reminder lead time for **new** events; `0` disables reminders.
+- `/settings lfg-expiry minutes:60` — default lifetime for **new** LFG posts.
+- `/settings leaderboard channel:#ranked refresh-minutes:10` — enable/configure the persistent Valorant leaderboard. Omit `channel` to disable it. Changes are picked up within a minute.
+- `/music settings bind-channel`, `unbind-channel`, `dj-role`, `clear-dj-role`, `default-volume`, `voteskip`, `voteskip-threshold`, and `twenty-four-seven` manage existing guild music settings.
+- `/music settings panel-persistence enabled:true` — reuse saved music-panel messages after a restart. Defaults to enabled for every guild; no server IDs are built into the code. Set `false` to stop restoring panel references.
+
+Settings and help commands remain usable in any channel so admins can remove a stale channel restriction. Credentials, storage paths, and deployment/runtime defaults remain environment configuration.
+
+### Events, squads, and reminders
+
+Use `/event create title:"Ranked Night" starts:"2026-12-05 20:00" timezone:America/New_York limit:5 reminder-minutes:15` (choose a future date). Attendees toggle their RSVP with the button, and reminders mention only the attendees. `/event list` and event footers show the ID; `/event edit id:…` and `/event cancel id:…` also offer autocomplete. The creator or a server manager can edit/cancel. Set `limit:0` for unlimited RSVPs. Rescheduling resets attendee notification state; changing server defaults does not alter existing events.
+
+Use `/valorant lfg` or `/apex lfg` to post a squad. The host occupies one slot; `needed` specifies additional teammates. Members use Join/Leave, and the host uses Close. Posts and membership persist across restarts. Expired posts reject further changes immediately; controls are disabled by the scheduler within 30 seconds while the bot is online.
+
+Use `/remind me when:2h30m message:"Take a break"`, `/remind list`, and `/remind cancel id:…`. Absolute times and `tomorrow` (09:00) use the server timezone. Lists and cancellation are scoped to the requesting member and guild. Failed deliveries stay saved and retry with backoff (up to one hour) until delivered or cancelled. Delivery is at least once: a crash after sending but before saving acknowledgement can produce a duplicate. Notifications overdue during downtime are sent when the bot returns; event reminders only send before the event starts.
+
+After updating, run `npm run deploy:commands`, `npm run build`, and restart the bot to expose the new slash commands. Use `/bot help` to explore them.
 
 ## Notes
 

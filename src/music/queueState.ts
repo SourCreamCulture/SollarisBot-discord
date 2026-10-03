@@ -31,7 +31,10 @@ export interface PersistedPanelMessageRef {
 export interface QueueStateService {
   getAll(): PersistedQueueState[];
   get(guildId: string): PersistedQueueState | null;
-  save(state: PersistedQueueState): Promise<void>;
+  save(
+    state: PersistedQueueState,
+    options?: { preservePanelMessage?: boolean },
+  ): Promise<void>;
   clear(guildId: string): Promise<void>;
 }
 
@@ -240,11 +243,18 @@ class JsonQueueStateService implements QueueStateService {
     return state ? cloneState(state) : null;
   }
 
-  async save(state: PersistedQueueState): Promise<void> {
+  async save(
+    state: PersistedQueueState,
+    options: { preservePanelMessage?: boolean } = {},
+  ): Promise<void> {
     const existingPanelMessage = this.states.get(state.guildId)?.panelMessage;
     const nextState = cloneState(state);
 
-    if (!nextState.panelMessage && existingPanelMessage) {
+    if (
+      options.preservePanelMessage !== false &&
+      !nextState.panelMessage &&
+      existingPanelMessage
+    ) {
       nextState.panelMessage = clonePanelMessage(existingPanelMessage);
     }
 

@@ -1,3 +1,4 @@
+import { postLfg } from '../utils/lfg';
 import { EmbedBuilder, SlashCommandBuilder, userMention } from 'discord.js';
 
 import { createStatusEmbed } from '../utils/embeds';
@@ -126,6 +127,24 @@ export const apexCommand: CommandModule = {
     .setName('apex')
     .setDescription('Link an Apex account and look up Apex Legends stats.')
     .setDMPermission(false)
+    .addSubcommand((s) =>
+      s
+        .setName('lfg')
+        .setDescription('Find an Apex squad with Join and Leave buttons.')
+        .addIntegerOption((o) =>
+          o
+            .setName('needed')
+            .setDescription('Number of teammates needed')
+            .setMinValue(1)
+            .setMaxValue(2),
+        )
+        .addStringOption((o) =>
+          o
+            .setName('note')
+            .setDescription('Mode, rank, region, or other squad details')
+            .setMaxLength(500),
+        ),
+    )
     .addSubcommand((subcommand) =>
       subcommand
         .setName('link')
@@ -461,6 +480,17 @@ export const apexCommand: CommandModule = {
           await context.interaction.editReply({
             embeds: [buildStatsEmbed(card)],
           });
+          return;
+        }
+        case 'lfg': {
+          await context.deferReply();
+          await postLfg(
+            context,
+            'apex',
+            context.interaction.options.getInteger('needed') ?? 2,
+            context.interaction.options.getString('note') ??
+              'Join for Apex Legends.',
+          );
           return;
         }
         case 'watch': {

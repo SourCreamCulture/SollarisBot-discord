@@ -61,6 +61,17 @@ export const musicCommand: CommandModule = {
             .setName('view')
             .setDescription('Show current music settings.'),
         )
+        .addSubcommand((s) =>
+          s
+            .setName('panel-persistence')
+            .setDescription('Reuse the music control panel after a restart.')
+            .addBooleanOption((o) =>
+              o
+                .setName('enabled')
+                .setDescription('Enable panel recovery in this server')
+                .setRequired(true),
+            ),
+        )
         .addSubcommand((subcommand) =>
           subcommand
             .setName('default-volume')
@@ -343,6 +354,26 @@ export const musicCommand: CommandModule = {
     }
 
     switch (subcommand) {
+      case 'panel-persistence': {
+        const enabled = context.interaction.options.getBoolean('enabled', true);
+        await context.musicSettings.setPanelPersistenceEnabled(
+          guildId,
+          enabled,
+        );
+        if (!enabled) {
+          const snapshot = context.queueState.get(guildId);
+          if (snapshot) {
+            delete snapshot.panelMessage;
+            await context.queueState.save(snapshot, {
+              preservePanelMessage: false,
+            });
+          }
+        }
+        await context.replySuccess(
+          `Music panel recovery is now ${enabled ? 'enabled' : 'disabled'} in this server.`,
+        );
+        return;
+      }
       case 'default-volume': {
         const volume = context.interaction.options.getInteger('percent', true);
         const settings = await context.musicSettings.setDefaultVolume(
@@ -446,6 +477,14 @@ export const musicCommand: CommandModule = {
           .setColor(0x4f9eed)
           .setTitle('Music Settings')
           .addFields(
+            {
+              name: 'Panel Recovery',
+              value:
+                settings.panelPersistenceEnabled !== false
+                  ? 'Enabled'
+                  : 'Disabled',
+              inline: true,
+            },
             {
               name: 'Default Volume',
               value: `\`${settings.defaultVolume}%\``,

@@ -1,10 +1,11 @@
+import type { UtilityStore } from '../utils/utilityStore';
 import {
   EmbedBuilder,
   type Client,
   type GuildTextBasedChannel,
   type Message,
 } from 'discord.js';
-import { setInterval } from 'node:timers';
+import { setInterval, clearInterval } from 'node:timers';
 
 import type { Logger } from '../utils/logger';
 import {
@@ -24,6 +25,7 @@ const DEFAULT_SIZE = 10;
 interface ValorantLeaderboardManagerOptions {
   channelId?: string;
   refreshIntervalMs: number;
+  guildSettings?: UtilityStore;
 }
 
 const buildEmbed = (
@@ -45,6 +47,8 @@ const buildEmbed = (
 export class ValorantLeaderboardManager {
   private timer: ReturnType<typeof setInterval> | null = null;
   private refreshChain = Promise.resolve();
+  private readonly lastRefresh = new Map<string, number>();
+  private migrationPromise: Promise<void> | null = null;
 
   constructor(
     private readonly service: ValorantService,
@@ -55,43 +59,108 @@ export class ValorantLeaderboardManager {
   ) {}
 
   start(client: Client<true>): void {
-    if (!this.options.channelId) {
-      return;
-    }
-
-    void this.refresh(client).catch((error) => {
-      this.logger.warn('Valorant leaderboard refresh failed.', error);
-    });
-    this.timer = setInterval(() => {
-      void this.refresh(client).catch((error) => {
-        this.logger.warn('Valorant leaderboard refresh failed.', error);
-      });
-    }, this.options.refreshIntervalMs);
+    if (this.timer) return;
+    this.migrationPromise = this.migrateLegacyChannel(client);
+    const tick = () => {
+      void this.refresh(client).catch((error) =>
+        this.logger.warn('Valorant leaderboard refresh failed.', error),
+      );
+    };
+    tick();
+    this.timer = setInterval(
+      tick,
+      this.options.guildSettings ? 60000 : this.options.refreshIntervalMs,
+    );
     this.timer.unref?.();
   }
 
-  async refresh(client: Client<true>): Promise<void> {
-    if (!this.options.channelId) {
-      return;
-    }
+  async stop(): Promise<void> {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    await this.refreshChain.catch(() => undefined);
+  }
 
+  private async migrateLegacyChannel(client: Client<true>): Promise<void> {
+    const store = this.options.guildSettings;
+    if (!store || !this.options.channelId) return;
+    try {
+      const channel = await client.channels.fetch(this.options.channelId);
+      if (!channel || !('guildId' in channel) || !channel.guildId) return;
+      if (
+        store.getAllGuildSettings().some((s) => s.guildId === channel.guildId)
+      )
+        return;
+      await store.updateGuildSettings(channel.guildId, {
+        leaderboardChannelId: channel.id,
+        leaderboardRefreshMinutes: Math.min(
+          1440,
+          Math.max(1, Math.round(this.options.refreshIntervalMs / 60000)),
+        ),
+      });
+      this.logger.info(
+        'Migrated legacy Valorant leaderboard channel to guild settings.',
+      );
+    } catch (error) {
+      this.logger.warn('Could not migrate legacy leaderboard channel.', error);
+    }
+  }
+
+  async refresh(client: Client<true>): Promise<void> {
     this.refreshChain = this.refreshChain
       .catch(() => undefined)
-      .then(() => this.render(client));
-
+      .then(async () => {
+        await this.migrationPromise;
+        if (!this.options.guildSettings) {
+          if (this.options.channelId)
+            await this.render(
+              client,
+              this.options.channelId,
+              this.options.refreshIntervalMs,
+            );
+          return;
+        }
+        for (const settings of this.options.guildSettings.getAllGuildSettings()) {
+          if (
+            !settings.leaderboardChannelId ||
+            !client.guilds.cache.has(settings.guildId)
+          )
+            continue;
+          const key = `${settings.guildId}:${settings.leaderboardChannelId}:${settings.leaderboardRefreshMinutes}`;
+          const refreshIntervalMs = settings.leaderboardRefreshMinutes * 60000;
+          if (Date.now() - (this.lastRefresh.get(key) ?? 0) < refreshIntervalMs)
+            continue;
+          try {
+            await this.render(
+              client,
+              settings.leaderboardChannelId,
+              refreshIntervalMs,
+              settings.guildId,
+            );
+            this.lastRefresh.set(key, Date.now());
+          } catch (error) {
+            this.logger.warn(
+              `Leaderboard refresh failed for guild ${settings.guildId}.`,
+              error,
+            );
+          }
+        }
+      });
     await this.refreshChain;
   }
 
-  private async render(client: Client<true>): Promise<void> {
-    const channelId = this.options.channelId;
-
-    if (!channelId) {
-      return;
-    }
-
+  private async render(
+    client: Client<true>,
+    channelId: string,
+    refreshIntervalMs: number,
+    guildId?: string,
+  ): Promise<void> {
     const channel = await client.channels.fetch(channelId);
 
-    if (!channel?.isTextBased() || !('send' in channel)) {
+    if (
+      !channel?.isTextBased() ||
+      !('send' in channel) ||
+      (guildId && (!('guildId' in channel) || channel.guildId !== guildId))
+    ) {
       this.logger.warn(
         `Valorant leaderboard channel ${channelId} is not a sendable text channel.`,
       );
@@ -102,7 +171,7 @@ export class ValorantLeaderboardManager {
     const members = await this.getGuildLinkedMembers(textChannel);
     const existing = this.stateStore.getState(channelId);
     const card = await this.buildLeaderboardCard(members, existing?.snapshots);
-    const embed = buildEmbed(card, this.options.refreshIntervalMs);
+    const embed = buildEmbed(card, refreshIntervalMs);
 
     if (existing) {
       const message = await this.fetchMessage(textChannel, existing.messageId);
@@ -206,10 +275,10 @@ export class ValorantLeaderboardManager {
       };
     } catch (error) {
       this.logger.warn(
-        'Could not filter Valorant leaderboard links by guild membership. Falling back to all linked accounts.',
+        'Could not filter Valorant leaderboard links by guild membership. Skipping unverified accounts.',
         error,
       );
-      return undefined;
+      return { discordUserIds: [], displayNames: [] };
     }
   }
 

@@ -16,11 +16,16 @@ export interface GuildMusicSettings {
   twentyFourSevenEnabled: boolean;
   voteSkipEnabled: boolean;
   voteSkipThreshold: number;
+  panelPersistenceEnabled?: boolean;
   updatedAt: string;
 }
 
 export interface MusicSettingsService {
   getSettings(guildId: string): GuildMusicSettings;
+  setPanelPersistenceEnabled(
+    guildId: string,
+    enabled: boolean,
+  ): Promise<GuildMusicSettings>;
   setDefaultVolume(
     guildId: string,
     volume: number,
@@ -55,6 +60,7 @@ const settingsSchema = z.object({
   twentyFourSevenEnabled: z.boolean().default(false),
   voteSkipEnabled: z.boolean().default(true),
   voteSkipThreshold: z.number().min(0.1).max(1).default(0.5),
+  panelPersistenceEnabled: z.boolean().default(true),
   updatedAt: z.string().datetime(),
 });
 
@@ -144,6 +150,13 @@ class JsonMusicSettingsService implements MusicSettingsService {
     };
   }
 
+  async setPanelPersistenceEnabled(
+    guildId: string,
+    enabled: boolean,
+  ): Promise<GuildMusicSettings> {
+    return this.update(guildId, { panelPersistenceEnabled: enabled });
+  }
+
   async setDefaultVolume(
     guildId: string,
     volume: number,
@@ -201,6 +214,7 @@ class JsonMusicSettingsService implements MusicSettingsService {
       twentyFourSevenEnabled: false,
       voteSkipEnabled: true,
       voteSkipThreshold: this.config.music.voteSkipThreshold,
+      panelPersistenceEnabled: true,
       updatedAt: new Date().toISOString(),
     };
 
@@ -229,14 +243,17 @@ class JsonMusicSettingsService implements MusicSettingsService {
       guilds: Object.fromEntries(
         [...this.guilds.entries()].map(([guildId, settings]) => [
           guildId,
-          { ...settings },
+          {
+            ...settings,
+            panelPersistenceEnabled: settings.panelPersistenceEnabled ?? true,
+          },
         ]),
       ),
     };
 
-    this.writeChain = this.writeChain.then(() =>
-      writeJsonAtomic(this.filePath, snapshot),
-    );
+    this.writeChain = this.writeChain
+      .catch(() => undefined)
+      .then(() => writeJsonAtomic(this.filePath, snapshot));
 
     await this.writeChain;
   }

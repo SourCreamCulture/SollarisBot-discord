@@ -28,7 +28,6 @@ import type { VoteSkipManager } from './voteSkip';
 
 const CONTROL_PREFIX = 'music-control:';
 const SAVE_PLAYLIST_MODAL_PREFIX = 'music-save-playlist:';
-export const RESTORABLE_MUSIC_PANEL_GUILD_ID = '1482946727970340867';
 const QUEUE_PREVIEW_SIZE = 5;
 const QUEUE_SNAPSHOT_SIZE = 10;
 const HISTORY_PREVIEW_SIZE = 3;
@@ -393,10 +392,13 @@ export class MusicPanelManager {
     private readonly player: Player,
     private readonly logger: Logger,
     private readonly queueState: QueueStateService,
+    private readonly musicSettings?: MusicSettingsService,
   ) {}
 
   private shouldPersistPanelRef(guildId: string): boolean {
-    return guildId === RESTORABLE_MUSIC_PANEL_GUILD_ID;
+    return (
+      this.musicSettings?.getSettings(guildId).panelPersistenceEnabled ?? true
+    );
   }
 
   private getPanelRef(guildId: string): PanelRef | undefined {

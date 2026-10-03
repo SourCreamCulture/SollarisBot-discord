@@ -199,3 +199,26 @@ describe('createJsonQueueStateService', () => {
     assert.deepEqual(Object.keys(payload.guilds), ['guild-fresh']);
   });
 });
+
+it('can explicitly remove a saved panel reference while retaining queue recovery metadata', async () => {
+  const filePath = await createTempStorePath();
+  const service = await createJsonQueueStateService(
+    filePath,
+    logger,
+    freshQueueStateOptions,
+  );
+  const state = createState({
+    panelMessage: { channelId: 'channel', messageId: 'message' },
+  });
+  await service.save(state);
+  delete state.panelMessage;
+  await service.save(state, { preservePanelMessage: false });
+  assert.equal(service.get('guild-1')?.panelMessage, undefined);
+  const reloaded = await createJsonQueueStateService(
+    filePath,
+    logger,
+    freshQueueStateOptions,
+  );
+  assert.equal(reloaded.get('guild-1')?.panelMessage, undefined);
+  assert.equal(reloaded.get('guild-1')?.voiceChannelId, state.voiceChannelId);
+});

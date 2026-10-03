@@ -3,10 +3,7 @@ import { describe, it } from 'node:test';
 
 import { QueueRepeatMode } from 'discord-player';
 
-import {
-  MusicPanelManager,
-  RESTORABLE_MUSIC_PANEL_GUILD_ID,
-} from '../src/music/panel';
+import { MusicPanelManager } from '../src/music/panel';
 import type {
   PersistedQueueState,
   QueueStateService,
@@ -54,7 +51,7 @@ class MemoryQueueStateService implements QueueStateService {
 const createState = (
   overrides: Partial<PersistedQueueState> = {},
 ): PersistedQueueState => ({
-  guildId: RESTORABLE_MUSIC_PANEL_GUILD_ID,
+  guildId: 'guild-any',
   textChannelId: 'text-1',
   voiceChannelId: 'voice-1',
   currentTrack: null,
@@ -119,7 +116,7 @@ const createQueue = (
 ): GuildMusicSession =>
   ({
     guild: {
-      id: RESTORABLE_MUSIC_PANEL_GUILD_ID,
+      id: 'guild-any',
       members: { me: { id: 'bot-user' } },
       client: { user: { id: 'bot-user' } },
     },
@@ -169,13 +166,10 @@ describe('MusicPanelManager', () => {
 
     assert.equal(existingMessage.editCount, 1);
     assert.equal(textChannel.sentMessages.length, 0);
-    assert.deepEqual(
-      queueState.get(RESTORABLE_MUSIC_PANEL_GUILD_ID)?.panelMessage,
-      {
-        channelId: 'text-1',
-        messageId: 'panel-1',
-      },
-    );
+    assert.deepEqual(queueState.get('guild-any')?.panelMessage, {
+      channelId: 'text-1',
+      messageId: 'panel-1',
+    });
   });
 
   it('deletes an old restored panel before sending a replacement in the active channel', async () => {
@@ -207,12 +201,27 @@ describe('MusicPanelManager', () => {
 
     assert.equal(oldMessage.deleteCount, 1);
     assert.equal(activeChannel.sentMessages.length, 1);
-    assert.deepEqual(
-      queueState.get(RESTORABLE_MUSIC_PANEL_GUILD_ID)?.panelMessage,
-      {
-        channelId: 'text-new',
-        messageId: 'new-1',
-      },
-    );
+    assert.deepEqual(queueState.get('guild-any')?.panelMessage, {
+      channelId: 'text-new',
+      messageId: 'new-1',
+    });
   });
+});
+
+it('does not restore or save music panel references when the guild disables recovery', async () => {
+  const oldMessage = createMessage('old', 'text-1');
+  const channel = createTextChannel('text-1', oldMessage);
+  const queueState = new MemoryQueueStateService([
+    createState({ panelMessage: { channelId: 'text-1', messageId: 'old' } }),
+  ]);
+  const manager = new MusicPanelManager(
+    { client: { channels: { fetch: async () => channel } } } as never,
+    logger,
+    queueState,
+    { getSettings: () => ({ panelPersistenceEnabled: false }) } as never,
+  );
+  await manager.render(createQueue(channel));
+  assert.equal(oldMessage.editCount, 0);
+  assert.equal(channel.sentMessages.length, 1);
+  assert.equal(queueState.get('guild-any')?.panelMessage?.messageId, 'old');
 });
